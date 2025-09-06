@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../types/supabase";
+import { supabase } from "../lib/supabase";
 import type { Adventure } from "../types/types";
 
 export default function Adventures() {

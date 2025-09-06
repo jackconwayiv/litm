@@ -1,10 +1,16 @@
 // src/views/Characters.tsx
-import { DeleteIcon, RepeatIcon } from "@chakra-ui/icons";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  DeleteIcon,
+  RepeatIcon,
+} from "@chakra-ui/icons";
 import {
   Alert,
   AlertIcon,
   Box,
   Button,
+  Collapse,
   Heading,
   HStack,
   IconButton,
@@ -19,14 +25,17 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../types/supabase";
+import { supabase } from "../lib/supabase";
 import type { Character } from "../types/types";
+import Themes from "./Themes";
 
 export default function Characters() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => setOpen((s) => ({ ...s, [id]: !s[id] }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,7 +43,7 @@ export default function Characters() {
     const { data, error } = await supabase
       .from("characters")
       .select("id,name,player_id,fellowship_id,promise")
-      .order("name");
+      .order("created_at", { ascending: false });
     if (error) setErr(error.message);
     setCharacters((data ?? []) as Character[]);
     setLoading(false);
@@ -134,45 +143,51 @@ export default function Characters() {
           </Heading>
           <List spacing={2}>
             {characters.map((c) => (
-              <ListItem
-                key={c.id}
-                display="flex"
-                alignItems="center"
-                gap={3}
-                p={2}
-                borderWidth="1px"
-                rounded="md"
-              >
-                <Text flex="1">
-                  {c.name.toUpperCase()}{" "}
-                  <Text as="span" color="gray.500">
-                    (P{c.promise})
-                  </Text>
-                </Text>
-                <HStack>
-                  <Button size="sm" variant="ghost">
-                    Relationships
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    Quintessences
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    Backpack
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    Themes
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    Fellowship
-                  </Button>
+              <ListItem key={c.id} p={2} borderWidth="1px" rounded="md">
+                <HStack align="center" gap={3}>
                   <IconButton
-                    aria-label="Delete character"
-                    icon={<DeleteIcon />}
+                    aria-label={open[c.id] ? "Collapse" : "Expand"}
+                    icon={
+                      open[c.id] ? <ChevronDownIcon /> : <ChevronRightIcon />
+                    }
                     size="sm"
-                    colorScheme="red"
-                    onClick={() => deleteCharacter(c.id)}
+                    variant="ghost"
+                    onClick={() => toggle(c.id)}
                   />
+                  <Text fontWeight="bold" flex="1">
+                    {c.name.toUpperCase()}{" "}
+                    <Text as="span" color="gray.500"></Text>
+                  </Text>
                 </HStack>
+                <Collapse in={!!open[c.id]} animateOpacity>
+                  <VStack align="start" mt={2} spacing={2}>
+                    <HStack>
+                      <Button size="sm" variant="ghost">
+                        Relationships
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        Quintessences
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        Backpack
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        {c.promise} Promise
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        Fellowship
+                      </Button>
+                      <IconButton
+                        aria-label="Delete character"
+                        icon={<DeleteIcon />}
+                        size="sm"
+                        colorScheme="red"
+                        onClick={() => deleteCharacter(c.id)}
+                      />
+                    </HStack>
+                    <Themes characterId={c.id} />
+                  </VStack>
+                </Collapse>
               </ListItem>
             ))}
           </List>

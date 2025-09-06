@@ -3,7 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Login from "./Login";
-import { supabase } from "./types/supabase";
+import { supabase } from "./lib/supabase";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);

@@ -7,7 +7,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { supabase } from "../types/supabase";
+import { supabase } from "../lib/supabase";
 
 export default function NavBar() {
   const navigate = useNavigate();
