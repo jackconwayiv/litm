@@ -1,10 +1,5 @@
 // src/components/SingleTheme.tsx
-import {
-  CheckIcon,
-  CloseIcon,
-  DeleteIcon,
-  SettingsIcon,
-} from "@chakra-ui/icons";
+import { CheckIcon, CloseIcon, DeleteIcon } from "@chakra-ui/icons";
 import {
   Box,
   Button,
@@ -36,7 +31,9 @@ import {
   GiThreeLeaves,
   GiTripleScratches,
 } from "react-icons/gi";
+import { IoIosArrowDropdownCircle } from "react-icons/io";
 import { supabase } from "../lib/supabase";
+import PowerTags from "./PowerTags";
 
 type Def = { id: string; name: string };
 export type ThemeRow = {
@@ -104,6 +101,8 @@ export default function SingleTheme({
   const [editingQuest, setEditingQuest] = useState(false);
   const [tempQuest, setTempQuest] = useState(local.quest ?? "");
   const [deleting, setDeleting] = useState(false);
+  const [editingPowerTags, setEditingPowerTags] = useState(false);
+  const [editingWeaknessTags, setEditingWeaknessTags] = useState(false);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -197,7 +196,7 @@ export default function SingleTheme({
           <Tooltip label="Edit theme type & might">
             <IconButton
               aria-label="Edit type/might"
-              icon={<SettingsIcon />}
+              icon={<IoIosArrowDropdownCircle />}
               size="sm"
               variant="ghost"
               onClick={() => setEditingTypes(!editingTypes)}
@@ -207,7 +206,7 @@ export default function SingleTheme({
         </HStack>
         <Divider />
         {/* Name */}
-        <HStack justify="space-between" align="center">
+        <HStack justify="space-between" align="center" bgColor="yellow.50">
           <Tooltip label="Toggle scratched">
             <IconButton
               aria-label="Toggle scratched"
@@ -270,7 +269,7 @@ export default function SingleTheme({
               <Tooltip label="Edit theme name">
                 <IconButton
                   aria-label="Edit"
-                  icon={<SettingsIcon />}
+                  icon={<IoIosArrowDropdownCircle />}
                   size="sm"
                   variant="ghost"
                   onClick={() => {
@@ -284,19 +283,50 @@ export default function SingleTheme({
           </HStack>
         </HStack>
 
-        {/* Tags placeholder */}
-        <Box
-          borderWidth="1px"
-          borderStyle="dashed"
-          rounded="md"
-          p={2}
-          minH="64px"
-          bg="gray.50"
-        >
-          <Text fontSize="sm" color="gray.600">
-            Tags will render here
-          </Text>
-        </Box>
+        {/* Power Tags section */}
+        <HStack justify="space-between" align="center">
+          <Text fontWeight="bold">Power Tags</Text>
+          <Tooltip label={editingPowerTags ? "Done" : "Edit power tags"}>
+            <IconButton
+              aria-label="Edit power tags"
+              icon={<IoIosArrowDropdownCircle />}
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditingPowerTags((v) => !v)}
+              isDisabled={saving}
+            />
+          </Tooltip>
+        </HStack>
+
+        <PowerTags
+          themeId={local.id}
+          editing={editingPowerTags}
+          tagType="Power"
+          scratchable
+        />
+
+        <Divider mt={2} />
+
+        {/* Weakness Tags section */}
+        <HStack justify="space-between" align="center">
+          <Text fontWeight="bold">Weakness Tags</Text>
+          <Tooltip label={editingWeaknessTags ? "Done" : "Edit weakness tags"}>
+            <IconButton
+              aria-label="Edit weakness tags"
+              icon={<IoIosArrowDropdownCircle />}
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditingWeaknessTags((v) => !v)}
+              isDisabled={saving}
+            />
+          </Tooltip>
+        </HStack>
+        <PowerTags
+          themeId={local.id}
+          editing={editingWeaknessTags}
+          tagType="Weakness"
+          scratchable={false}
+        />
 
         {/* Quest field */}
         <Text fontWeight="bold">Quest:</Text>
@@ -354,7 +384,7 @@ export default function SingleTheme({
           <Tooltip label="Edit quest">
             <IconButton
               aria-label="Edit quest"
-              icon={<SettingsIcon />}
+              icon={<IoIosArrowDropdownCircle />}
               size="sm"
               variant="ghost"
               onClick={() => {
