@@ -1,0 +1,682 @@
+// src/views/SingleCharacter.tsx
+import { SettingsIcon } from "@chakra-ui/icons";
+import {
+  Alert,
+  AlertIcon,
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  IconButton,
+  Input,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Select,
+  Spinner,
+  Tab,
+  TabList,
+  Tabs,
+  Text,
+  useDisclosure,
+  useToast,
+} from "@chakra-ui/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import ThemePage from "./character/ThemePage";
+import type { ThemeRow as SingleThemeRow } from "./SingleTheme";
+
+type ThemeRow = SingleThemeRow;
+
+type TabKey = "theme1" | "theme2" | "theme3" | "theme4";
+const ORDER: TabKey[] = ["theme1", "theme2", "theme3", "theme4"];
+
+type CharacterRow = {
+  id: string;
+  name: string;
+  player_id: string;
+  fellowship_id: string | null;
+  promise: number;
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+  type: string | null;
+  is_scratched: boolean;
+  is_negative: boolean;
+  theme_id: string | null;
+  character_id: string | null;
+  fellowship_id: string | null;
+};
+
+type StatusRow = {
+  id: string;
+  name: string;
+  tier: number;
+  is_negative: boolean;
+  character_id: string | null;
+  fellowship_id: string | null;
+  adventure_id: string | null;
+};
+
+type CharacterQuintessence = { quintessence_id: string; name: string };
+type Def = { id: string; name: string };
+
+type Loaded = {
+  character: CharacterRow;
+  themes: ThemeRow[];
+  tags: TagRow[];
+  statuses: StatusRow[];
+  quintessences: CharacterQuintessence[];
+  mightDefs: Def[];
+  typeDefs: Def[];
+};
+
+const truncateThemeName = (s: string) => (s.length <= 20 ? s : s.slice(0, 20));
+
+export default function SingleCharacter() {
+  const { charId } = useParams();
+  const [tab, setTab] = useState<TabKey>("theme1");
+  const [data, setData] = useState<Loaded | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Add Theme modal state
+  const addModal = useDisclosure();
+  const toast = useToast({
+    duration: 2000,
+    position: "top-right",
+    isClosable: true,
+  });
+  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
+  const [newThemeName, setNewThemeName] = useState("");
+  const [newTypeId, setNewTypeId] = useState<string>("");
+  const [newMightId, setNewMightId] = useState<string>("");
+  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
+
+  const settings = useDisclosure();
+  const confirmDelete = useDisclosure();
+
+  const [editName, setEditName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [deletingChar, setDeletingChar] = useState(false);
+
+  // hash sync
+  useEffect(() => {
+    const fromHash = window.location.hash.replace(/^#/, "") as TabKey;
+    if (ORDER.includes(fromHash)) setTab(fromHash);
+    const onHash = () => {
+      const h = window.location.hash.replace(/^#/, "") as TabKey;
+      if (ORDER.includes(h)) setTab(h);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    if (!charId) return;
+    setLoading(true);
+    setErr(null);
+
+    const { data: cRow, error: cErr } = await supabase
+      .from("characters")
+      .select("id,name,player_id,fellowship_id,promise")
+      .eq("id", charId)
+      .single();
+    if (cErr || !cRow) {
+      setErr(cErr?.message ?? "Character not found.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: tRows, error: tErr } = await supabase
+      .from("themes")
+      .select(
+        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id"
+      )
+      .eq("character_id", charId);
+    if (tErr) {
+      setErr(tErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const themeIds = (tRows ?? []).map((t) => t.id);
+    const { data: tagRows, error: tagErr } = await supabase
+      .from("tags")
+      .select("*")
+      .or(
+        [
+          `character_id.eq.${charId}`,
+          themeIds.length ? `theme_id.in.(${themeIds.join(",")})` : "",
+        ]
+          .filter(Boolean)
+          .join(",")
+      );
+    if (tagErr) {
+      setErr(tagErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: mightDefsRows, error: mErr } = await supabase
+      .from("might_level_defs")
+      .select("id,name")
+      .order("name");
+    if (mErr) {
+      setErr(mErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: typeDefsRows, error: tdefErr } = await supabase
+      .from("theme_type_defs")
+      .select("id,name")
+      .order("name");
+    if (tdefErr) {
+      setErr(tdefErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: sRows, error: sErr } = await supabase
+      .from("statuses")
+      .select("*")
+      .eq("character_id", charId);
+    if (sErr) {
+      setErr(sErr.message);
+      setLoading(false);
+      return;
+    }
+
+    type QDefObj = { name: string };
+    type QuintessenceJoined = {
+      quintessence_id: string;
+      quintessence_defs: QDefObj | QDefObj[] | null;
+    };
+    const { data: qRows, error: qErr } = await supabase
+      .from("character_quintessences")
+      .select("quintessence_id,quintessence_defs(name)")
+      .eq("character_id", charId);
+    if (qErr) {
+      setErr(qErr.message);
+      setLoading(false);
+      return;
+    }
+    const qList = (qRows ?? []) as QuintessenceJoined[];
+    const quintessences: CharacterQuintessence[] = qList.map((r) => ({
+      quintessence_id: r.quintessence_id,
+      name: Array.isArray(r.quintessence_defs)
+        ? r.quintessence_defs[0]?.name ?? ""
+        : r.quintessence_defs?.name ?? "",
+    }));
+
+    setData({
+      character: cRow as CharacterRow,
+      themes: (tRows ?? []) as ThemeRow[],
+      tags: (tagRows ?? []) as TagRow[],
+      statuses: (sRows ?? []) as StatusRow[],
+      quintessences,
+      mightDefs: (mightDefsRows ?? []) as Def[],
+      typeDefs: (typeDefsRows ?? []) as Def[],
+    });
+    setLoading(false);
+  }, [charId]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  async function handleDeleteTheme(id: string) {
+    const { error } = await supabase.from("themes").delete().eq("id", id);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    setData((prev) =>
+      prev ? { ...prev, themes: prev.themes.filter((t) => t.id !== id) } : prev
+    );
+  }
+
+  function openAddTheme(slot: number) {
+    setPendingSlot(slot);
+    // sensible defaults
+    const mightNames = ["Origin", "Adventure", "Greatness"];
+    const originDef =
+      data?.mightDefs.find((d) => d.name === "Origin") ??
+      // fallback to first available in your preferred order
+      mightNames
+        .map((n) => data?.mightDefs.find((d) => d.name === n))
+        .find(Boolean) ??
+      null;
+
+    setNewMightId(originDef?.id ?? "");
+    if (data) {
+      setNewTypeId(data.typeDefs[0]?.id ?? "");
+    }
+    setNewThemeName("");
+    addModal.onOpen();
+  }
+
+  async function createTheme() {
+    if (!data || !charId) return;
+    const name = newThemeName.trim();
+    if (!name || !newTypeId || !newMightId) {
+      toast({ status: "warning", title: "Name, Type, and Might are required" });
+      return;
+    }
+    setCreating(true);
+    const { data: inserted, error } = await supabase
+      .from("themes")
+      .insert({
+        character_id: data.character.id,
+        fellowship_id: null,
+        name,
+        type_id: newTypeId,
+        might_level_id: newMightId,
+        quest: null,
+        improve: 0,
+        abandon: 0,
+        milestone: 0,
+        is_retired: false,
+        is_scratched: false,
+      })
+      .select(
+        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id"
+      )
+      .single();
+
+    setCreating(false);
+    if (error) {
+      toast({ status: "error", title: error.message });
+      return;
+    }
+    if (inserted) {
+      setData((prev) =>
+        prev
+          ? { ...prev, themes: [...prev.themes, inserted as ThemeRow] }
+          : prev
+      );
+      addModal.onClose();
+      // switch to Themes tabs. Resorting happens in render.
+      if (pendingSlot) {
+        setTab(ORDER[pendingSlot - 1]);
+        window.location.hash = ORDER[pendingSlot - 1];
+      }
+      toast({ status: "success", title: "Theme added" });
+    }
+  }
+
+  const index = useMemo(() => ORDER.indexOf(tab), [tab]);
+
+  if (loading) {
+    return (
+      <HStack p={6} spacing={3}>
+        <Spinner />
+        <Text>Loading character…</Text>
+      </HStack>
+    );
+  }
+  if (err) {
+    return (
+      <Alert status="error" m={4}>
+        <AlertIcon />
+        {err}
+      </Alert>
+    );
+  }
+  if (!data) return null;
+
+  const sorted = [...data.themes].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
+  const themeSlots: (ThemeRow | null)[] = [0, 1, 2, 3].map(
+    (i) => sorted[i] ?? null
+  );
+  const labels = themeSlots.map((t) =>
+    t ? truncateThemeName(t.name) : "No Theme"
+  );
+  const onTabChange = (i: number) => {
+    const k = ORDER[i];
+    if (!themeSlots[i]) openAddTheme(i + 1); // open modal on "No Theme"
+    setTab(k);
+    window.location.hash = k;
+  };
+
+  const mightNames = ["Origin", "Adventure", "Greatness"];
+
+  return (
+    <Box p={2}>
+      <HStack px={2} pt={2} pb={1} justify="space-between">
+        <Heading size="lg">{data.character.name}</Heading>
+        <IconButton
+          aria-label="Character settings"
+          icon={<SettingsIcon />}
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setEditName(data.character.name);
+            settings.onOpen();
+          }}
+        />
+      </HStack>
+
+      <HStack
+        px={2}
+        py={1}
+        position="sticky"
+        top={0}
+        zIndex={10}
+        bg="chakra-body-bg"
+      >
+        <Tabs
+          index={index}
+          onChange={onTabChange}
+          variant="soft-rounded"
+          isFitted
+          overflowX="auto"
+          width="100%"
+        >
+          <TabList>
+            {labels.map((label, i) => (
+              <Tab
+                key={i}
+                opacity={themeSlots[i] ? 1 : 0.6}
+                onClick={() => {
+                  if (!themeSlots[i]) openAddTheme(i + 1); // optional: immediate open on click
+                }}
+              >
+                {label}
+              </Tab>
+            ))}
+          </TabList>
+        </Tabs>
+      </HStack>
+
+      <Box p={3}>
+        {tab === "theme1" &&
+          (themeSlots[0] ? (
+            <ThemePage
+              characterId={data.character.id}
+              n={1}
+              theme={themeSlots[0]}
+              tags={data.tags}
+              mightDefs={data.mightDefs}
+              typeDefs={data.typeDefs}
+              onDelete={handleDeleteTheme}
+            />
+          ) : (
+            <Box p={4}>
+              <Text color="gray.500">No Theme assigned yet.</Text>
+              <Button mt={3} colorScheme="teal" onClick={() => openAddTheme(1)}>
+                Add Theme
+              </Button>
+            </Box>
+          ))}
+
+        {tab === "theme2" &&
+          (themeSlots[1] ? (
+            <ThemePage
+              characterId={data.character.id}
+              n={2}
+              theme={themeSlots[1]}
+              tags={data.tags}
+              mightDefs={data.mightDefs}
+              typeDefs={data.typeDefs}
+              onDelete={handleDeleteTheme}
+            />
+          ) : (
+            <Box p={4}>
+              <Text color="gray.500">No Theme assigned yet.</Text>
+              <Button mt={3} colorScheme="teal" onClick={() => openAddTheme(2)}>
+                Add Theme
+              </Button>
+            </Box>
+          ))}
+
+        {tab === "theme3" &&
+          (themeSlots[2] ? (
+            <ThemePage
+              characterId={data.character.id}
+              n={3}
+              theme={themeSlots[2]}
+              tags={data.tags}
+              mightDefs={data.mightDefs}
+              typeDefs={data.typeDefs}
+              onDelete={handleDeleteTheme}
+            />
+          ) : (
+            <Box p={4}>
+              <Text color="gray.500">No Theme assigned yet.</Text>
+              <Button mt={3} colorScheme="teal" onClick={() => openAddTheme(3)}>
+                Add Theme
+              </Button>
+            </Box>
+          ))}
+
+        {tab === "theme4" &&
+          (themeSlots[3] ? (
+            <ThemePage
+              characterId={data.character.id}
+              n={4}
+              theme={themeSlots[3]}
+              tags={data.tags}
+              mightDefs={data.mightDefs}
+              typeDefs={data.typeDefs}
+              onDelete={handleDeleteTheme}
+            />
+          ) : (
+            <Box p={4}>
+              <Text color="gray.500">No Theme assigned yet.</Text>
+              <Button mt={3} colorScheme="teal" onClick={() => openAddTheme(4)}>
+                Add Theme
+              </Button>
+            </Box>
+          ))}
+      </Box>
+
+      {/* Add Theme Modal */}
+      <Modal
+        isOpen={addModal.isOpen}
+        onClose={() => {
+          if (!creating) addModal.onClose();
+        }}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add a Theme for {data.character.name}</ModalHeader>
+          <ModalCloseButton isDisabled={creating} />
+          <ModalBody>
+            <FormControl isRequired mb={3}>
+              <FormLabel>Name</FormLabel>
+              <Input
+                value={newThemeName}
+                onChange={(e) => setNewThemeName(e.target.value)}
+                placeholder="Theme name"
+                isDisabled={creating}
+                autoFocus
+              />
+            </FormControl>
+            <FormControl isRequired mb={3}>
+              <FormLabel>Type</FormLabel>
+              <Select
+                value={newTypeId}
+                onChange={(e) => setNewTypeId(e.target.value)}
+                isDisabled={creating}
+              >
+                {data.typeDefs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Might</FormLabel>
+              <Select
+                value={newMightId}
+                onChange={(e) => setNewMightId(e.target.value)}
+              >
+                {mightNames.map((name) => {
+                  const def = data.mightDefs.find((d) => d.name === name);
+                  return def ? (
+                    <option key={def.id} value={def.id}>
+                      {def.name}
+                    </option>
+                  ) : null;
+                })}
+              </Select>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              mr={3}
+              onClick={addModal.onClose}
+              isDisabled={creating}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={createTheme}
+              isLoading={creating}
+              loadingText="Creating"
+            >
+              Create
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      {/* Character Settings Modal */}
+      <Modal
+        isOpen={settings.isOpen}
+        onClose={() => !savingName && settings.onClose()}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit {data.character.name}</ModalHeader>
+          <ModalCloseButton isDisabled={savingName} />
+          <ModalBody>
+            <FormControl isRequired>
+              <FormLabel>Name</FormLabel>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                isDisabled={savingName}
+                autoFocus
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter gap={2}>
+            <Button
+              variant="ghost"
+              onClick={settings.onClose}
+              isDisabled={savingName}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="red"
+              variant="outline"
+              onClick={() => {
+                settings.onClose();
+                confirmDelete.onOpen();
+              }}
+              isDisabled={savingName}
+            >
+              Delete…
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={async () => {
+                const name = editName.trim();
+                if (!name)
+                  return toast({ status: "warning", title: "Name required" });
+                setSavingName(true);
+                const { error } = await supabase
+                  .from("characters")
+                  .update({ name })
+                  .eq("id", data!.character.id);
+                setSavingName(false);
+                if (error)
+                  return toast({ status: "error", title: error.message });
+                setData((prev) =>
+                  prev
+                    ? { ...prev, character: { ...prev.character, name } }
+                    : prev
+                );
+                settings.onClose();
+                toast({ status: "success", title: "Character updated" });
+              }}
+              isLoading={savingName}
+              loadingText="Saving"
+            >
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={confirmDelete.isOpen}
+        onClose={() => !deletingChar && confirmDelete.onClose()}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Delete {data.character.name}?</ModalHeader>
+          <ModalCloseButton isDisabled={deletingChar} />
+          <ModalBody>
+            <Text>
+              {" "}
+              This action permanently deletes the character{" "}
+              <strong>{data.character.name}</strong> and all its data.{" "}
+            </Text>
+          </ModalBody>
+          <ModalFooter gap={2}>
+            <Button
+              variant="ghost"
+              onClick={confirmDelete.onClose}
+              isDisabled={deletingChar}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="red"
+              onClick={async () => {
+                setDeletingChar(true);
+                const { error } = await supabase
+                  .from("characters")
+                  .delete()
+                  .eq("id", data!.character.id);
+                setDeletingChar(false);
+                if (error)
+                  return toast({ status: "error", title: error.message });
+                toast({ status: "success", title: "Character deleted" });
+                confirmDelete.onClose();
+                navigate("/characters", { replace: true }); // or navigate("/")
+              }}
+              isLoading={deletingChar}
+              loadingText="Deleting"
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+}

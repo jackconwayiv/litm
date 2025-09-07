@@ -25,6 +25,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { Character } from "../types/types";
 import Themes from "./Themes";
@@ -35,6 +36,9 @@ export default function Characters() {
   const [err, setErr] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const nav = useNavigate();
+
   const toggle = (id: string) => setOpen((s) => ({ ...s, [id]: !s[id] }));
 
   const load = useCallback(async () => {
@@ -42,15 +46,36 @@ export default function Characters() {
     setErr(null);
     const { data, error } = await supabase
       .from("characters")
-      .select("id,name,player_id,fellowship_id,promise")
+      .select("id,name,player_id,fellowship_id,promise,created_at")
       .order("created_at", { ascending: false });
     if (error) setErr(error.message);
     setCharacters((data ?? []) as Character[]);
     setLoading(false);
   }, []);
 
+  const loadActive = useCallback(async () => {
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u?.user?.id;
+    if (!uid) {
+      setActiveId(null);
+      return;
+    }
+    const { data: p, error } = await supabase
+      .from("profiles")
+      .select("active_character_id")
+      .eq("id", uid)
+      .maybeSingle();
+
+    if (error) {
+      setActiveId(null);
+      return;
+    }
+    setActiveId((p?.active_character_id as string) ?? null);
+  }, []);
+
   useEffect(() => {
     load();
+    loadActive();
     const ch = supabase
       .channel("rt:characters")
       .on(
@@ -62,7 +87,71 @@ export default function Characters() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [load]);
+  }, [load, loadActive]);
+
+  async function ensureProfileId(): Promise<string | null> {
+    const { data: u, error: ue } = await supabase.auth.getUser();
+    if (ue || !u?.user) return null;
+    const uid = u.user.id;
+
+    const { data: prof, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", uid)
+      .maybeSingle();
+
+    if (error) return null;
+
+    if (!prof) {
+      const meta = u.user.user_metadata as Record<string, unknown>;
+      const display_name =
+        (typeof meta.name === "string" && meta.name) ||
+        (u.user.email ? u.user.email.split("@")[0] : "Player");
+      const { error: insErr } = await supabase
+        .from("profiles")
+        .insert({ id: uid, display_name });
+      if (insErr) return null;
+    }
+    return uid;
+  }
+
+  async function setActiveCharacter(id: string) {
+    setErr(null);
+
+    const uid = await ensureProfileId();
+    if (!uid) {
+      setErr("Not authenticated or profile missing.");
+      return;
+    }
+
+    // Optional: ensure ownership
+    const { data: owned } = await supabase
+      .from("characters")
+      .select("id")
+      .eq("id", id)
+      .eq("player_id", uid)
+      .maybeSingle();
+    if (!owned) {
+      setErr("Not your character.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ active_character_id: id })
+      .eq("id", uid)
+      .select("active_character_id")
+      .single();
+
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+
+    setActiveId(data.active_character_id as string);
+    // re-read to be certain
+    await loadActive();
+  }
 
   async function createCharacter() {
     setErr(null);
@@ -72,13 +161,20 @@ export default function Characters() {
     const trimmed = name.trim();
     if (!trimmed) return setErr("Name required.");
 
-    const { error } = await supabase.from("characters").insert({
-      name: trimmed,
-      player_id: uid,
-      fellowship_id: null,
-    });
+    const { data, error } = await supabase
+      .from("characters")
+      .insert({ name: trimmed, player_id: uid, fellowship_id: null })
+      .select("id")
+      .single();
+
     if (error) return setErr(error.message);
     setName("");
+
+    if (data?.id) {
+      await setActiveCharacter(data.id);
+      return nav(`/c/${data.id}#bio`, { replace: true });
+    }
+
     load();
   }
 
@@ -86,8 +182,14 @@ export default function Characters() {
     setErr(null);
     const { error } = await supabase.from("characters").delete().eq("id", id);
     if (error) setErr(error.message);
-    else load();
+    else {
+      if (id === activeId) setActiveId(null);
+      load();
+      loadActive();
+    }
   }
+
+  const go = (id: string, hash: string) => nav(`/c/${id}#${hash}`);
 
   return (
     <Box p={4}>
@@ -156,25 +258,59 @@ export default function Characters() {
                   />
                   <Text fontWeight="bold" flex="1">
                     {c.name.toUpperCase()}{" "}
-                    <Text as="span" color="gray.500"></Text>
+                    {c.id === activeId && (
+                      <Tag size="sm" colorScheme="purple" ml={2}>
+                        <TagLabel>Active</TagLabel>
+                      </Tag>
+                    )}
                   </Text>
+                  <Button
+                    size="sm"
+                    colorScheme="teal"
+                    onClick={() => go(c.id, "bio")}
+                  >
+                    Open
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={c.id === activeId ? "solid" : "outline"}
+                    colorScheme="purple"
+                    onClick={() => setActiveCharacter(c.id)}
+                    isDisabled={c.id === activeId}
+                  >
+                    Set Active
+                  </Button>
                 </HStack>
+
                 <Collapse in={!!open[c.id]} animateOpacity>
                   <VStack align="start" mt={2} spacing={2}>
-                    <HStack>
-                      <Button size="sm" variant="ghost">
+                    <HStack wrap="wrap" spacing={2}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => go(c.id, "relationships")}
+                      >
                         Relationships
                       </Button>
-                      <Button size="sm" variant="ghost">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => go(c.id, "promise")}
+                      >
                         Quintessences
                       </Button>
-                      <Button size="sm" variant="ghost">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => go(c.id, "backpack")}
+                      >
                         Backpack
                       </Button>
-                      <Button size="sm" variant="ghost">
-                        {c.promise} Promise
-                      </Button>
-                      <Button size="sm" variant="ghost">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => go(c.id, "fellowship")}
+                      >
                         Fellowship
                       </Button>
                       <IconButton
@@ -185,6 +321,7 @@ export default function Characters() {
                         onClick={() => deleteCharacter(c.id)}
                       />
                     </HStack>
+
                     <Themes characterId={c.id} />
                   </VStack>
                 </Collapse>

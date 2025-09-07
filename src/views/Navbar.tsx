@@ -1,16 +1,28 @@
-// src/views/NavBar.tsx
+// src/views/Navbar.tsx
+import { HamburgerIcon } from "@chakra-ui/icons";
 import {
   Button,
+  Drawer,
+  DrawerBody,
+  DrawerCloseButton,
+  DrawerContent,
+  DrawerHeader,
+  DrawerOverlay,
   Flex,
   HStack,
+  IconButton,
   Link,
+  Stack,
   useColorModeValue,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 export default function NavBar() {
   const navigate = useNavigate();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
   const inactiveColor = useColorModeValue("gray.700", "gray.300");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const bgColor = useColorModeValue("gray.50", "gray.800");
@@ -27,6 +39,7 @@ export default function NavBar() {
     borderRadius: "6px",
     color: inactiveColor,
     _activeLink: { color: "white", bg: "blue.600", fontWeight: "bold" },
+    onClick: onClose,
   } as const;
 
   return (
@@ -39,21 +52,61 @@ export default function NavBar() {
       borderBottom="1px solid"
       borderColor={borderColor}
       bg={bgColor}
+      position="sticky"
+      top={0}
+      zIndex={100}
     >
+      {/* Left: hamburger on mobile, inline links on desktop */}
       <HStack spacing={2}>
-        <Link as={NavLink} to="/adventures" {...baseLinkProps}>
-          Adventures
-        </Link>
-        <Link as={NavLink} to="/characters" {...baseLinkProps}>
-          Characters
-        </Link>
-        <Link as={NavLink} to="/profile" {...baseLinkProps}>
-          Profile
-        </Link>
+        <IconButton
+          aria-label="Menu"
+          icon={<HamburgerIcon />}
+          display={{ base: "inline-flex", md: "none" }}
+          variant="ghost"
+          onClick={onOpen}
+        />
+        <HStack spacing={2} display={{ base: "none", md: "flex" }}>
+          <Link as={NavLink} to="/" {...baseLinkProps}>
+            Home
+          </Link>
+          <Link as={NavLink} to="/profile" {...baseLinkProps}>
+            Profile
+          </Link>
+        </HStack>
       </HStack>
+
+      {/* Right: logout */}
       <Button size="sm" colorScheme="red" onClick={logout}>
         Log out
       </Button>
+
+      {/* Drawer for mobile */}
+      <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader>Menu</DrawerHeader>
+          <DrawerBody>
+            <Stack spacing={2}>
+              <Link as={NavLink} to="/" {...baseLinkProps}>
+                Home
+              </Link>
+              <Link as={NavLink} to="/profile" {...baseLinkProps}>
+                Profile
+              </Link>
+              <Button
+                colorScheme="red"
+                onClick={() => {
+                  onClose();
+                  logout();
+                }}
+              >
+                Log out
+              </Button>
+            </Stack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
     </Flex>
   );
 }

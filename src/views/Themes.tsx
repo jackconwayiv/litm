@@ -267,7 +267,6 @@ export default function Themes({ characterId }: { characterId: string }) {
                   theme={t}
                   mightDefs={mightDefs}
                   typeDefs={typeDefs}
-                  onChanged={load}
                   onDelete={(id) => deleteTheme(id)}
                 />
               ))}

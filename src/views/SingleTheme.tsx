@@ -58,7 +58,6 @@ export default function SingleTheme({
   theme: ThemeRow;
   mightDefs: Def[];
   typeDefs: Def[];
-  onChanged: () => void;
   onDelete: (id: string) => void;
 }) {
   const toast = useToast({
@@ -93,7 +92,6 @@ export default function SingleTheme({
       setLocal(prev); // rollback
       return toast({ status: "error", title: error.message });
     }
-    // no onChanged() here; realtime or parent will keep in sync without flicker
   }
   const [editing, setEditing] = useState(false);
   const [tempName, setTempName] = useState(local.name);
@@ -453,7 +451,6 @@ export default function SingleTheme({
               aria-label="Delete theme"
               icon={<DeleteIcon />}
               colorScheme="red"
-              variant="outline"
               size="sm"
               onClick={onOpen}
               isDisabled={saving}
