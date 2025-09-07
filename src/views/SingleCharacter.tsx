@@ -5,6 +5,7 @@ import {
   AlertIcon,
   Box,
   Button,
+  Divider,
   FormControl,
   FormLabel,
   Heading,
@@ -28,6 +29,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PiBackpackFill, PiSpiralBold } from "react-icons/pi";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import BackpackView from "./character/BackpackView";
@@ -128,6 +130,7 @@ export default function SingleCharacter() {
   const [editName, setEditName] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [deletingChar, setDeletingChar] = useState(false);
+  const [savingPromise, setSavingPromise] = useState(false);
 
   // hash sync
   useEffect(() => {
@@ -266,6 +269,23 @@ export default function SingleCharacter() {
     );
   }
 
+  async function updatePromise(next: number) {
+    if (!data) return;
+    setSavingPromise(true);
+    const { error } = await supabase
+      .from("characters")
+      .update({ promise: next })
+      .eq("id", data.character.id);
+    setSavingPromise(false);
+    if (error) {
+      toast({ status: "error", title: error.message });
+      return;
+    }
+    setData((prev) =>
+      prev ? { ...prev, character: { ...prev.character, promise: next } } : prev
+    );
+  }
+
   function openAddTheme(slot: number) {
     setPendingSlot(slot);
     // sensible defaults
@@ -372,8 +392,8 @@ export default function SingleCharacter() {
   const mightNames = ["Origin", "Adventure", "Greatness"];
 
   return (
-    <Box p={2}>
-      <HStack px={2} pt={2} pb={1} justify="space-between">
+    <Box>
+      <HStack pb={2} justify="space-between">
         <Heading size="lg">{data.character.name}</Heading>
         <IconButton
           aria-label="Character settings"
@@ -386,7 +406,37 @@ export default function SingleCharacter() {
           }}
         />
       </HStack>
-
+      <HStack justifyContent="center" pb={2}>
+        <Text fontSize={12} mr={5}>
+          Promise:
+        </Text>
+        <HStack spacing={1}>
+          <Button
+            size="xs"
+            mr={5}
+            onClick={() =>
+              updatePromise(Math.max(0, data.character.promise - 1))
+            }
+            isDisabled={savingPromise || data.character.promise <= 0}
+          >
+            –
+          </Button>
+          <Text fontSize={16} fontWeight="bold">
+            {data.character.promise}
+          </Text>
+          <Button
+            size="xs"
+            ml={5}
+            onClick={() =>
+              updatePromise(Math.min(5, data.character.promise + 1))
+            }
+            isDisabled={savingPromise || data.character.promise >= 5}
+          >
+            +
+          </Button>
+        </HStack>
+      </HStack>
+      <Divider />
       <HStack
         px={2}
         py={1}
@@ -406,27 +456,38 @@ export default function SingleCharacter() {
           <TabList>
             {ORDER.map((k, i) => {
               const theme = isThemeTab(k) ? themeSlots[i] : null;
-
-              const label =
-                k === "statuses"
-                  ? "Statuses"
-                  : k === "backpack"
-                  ? "Backpack"
-                  : theme
-                  ? truncateThemeName(theme.name)
-                  : "No Theme";
-
               const opacity = isThemeTab(k) ? (theme ? 1 : 0.6) : 1;
 
               return (
                 <Tab
                   key={k}
                   opacity={opacity}
+                  fontSize={{ base: "12", md: "14" }}
+                  p={1}
                   onClick={() => {
                     if (isThemeTab(k) && !theme) openAddTheme(i + 1);
                   }}
+                  aria-label={k} // helps when text is hidden on mobile
                 >
-                  {label}
+                  {k === "backpack" ? (
+                    <HStack spacing={1}>
+                      <PiBackpackFill />
+                      <Text display={{ base: "none", md: "inline" }}>
+                        Backpack
+                      </Text>
+                    </HStack>
+                  ) : k === "statuses" ? (
+                    <HStack spacing={1} m={0}>
+                      <PiSpiralBold />
+                      <Text display={{ base: "none", md: "inline" }}>
+                        Statuses
+                      </Text>
+                    </HStack>
+                  ) : theme ? (
+                    truncateThemeName(theme.name)
+                  ) : (
+                    "No Theme"
+                  )}
                 </Tab>
               );
             })}

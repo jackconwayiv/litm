@@ -4,12 +4,14 @@ import {
   AlertIcon,
   Box,
   Button,
+  FormControl,
+  FormLabel,
   HStack,
   Heading,
   IconButton,
   Input,
-  Select,
   Spinner,
+  Switch,
   Text,
   Tooltip,
   VStack,
@@ -27,10 +29,11 @@ type TagRow = {
   character_id: string | null; // direct attachment to character
   theme_id: string | null; // should be null for Backpack items
   name: string;
-  type: BackpackTagType;
-  is_scratched: boolean | null;
-  is_negative: boolean; // keep for parity with theme tags; unused here
-  created_at?: string;
+  type: BackpackTagType | null; // DB allows null, we filter to two kinds
+  is_scratched: boolean; // NOT NULL DEFAULT false
+  is_negative: boolean; // NOT NULL DEFAULT false
+  scratched_at?: string | null;
+  scratched_by_player_id?: string | null;
 };
 
 const TABLE = "tags";
@@ -47,9 +50,9 @@ export default function BackpackView({
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TagRow[]>([]);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<BackpackTagType>("Story");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [singleUse, setSingleUse] = useState(false); // toggle: false => Story, true => Single-Use
 
   const canSave = useMemo(
     () => !!characterId && newName.trim().length > 0 && !saving,
@@ -59,7 +62,7 @@ export default function BackpackView({
   const fetchRows = useCallback(async () => {
     if (!characterId) {
       setRows([]);
-      setLoading(false); // important
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -75,7 +78,7 @@ export default function BackpackView({
       setError(error.message);
       setRows([]);
     } else {
-      setRows(data ?? []);
+      setRows((data ?? []) as TagRow[]);
     }
     setLoading(false);
   }, [characterId]);
@@ -91,11 +94,12 @@ export default function BackpackView({
   const addTag = useCallback(async () => {
     if (!characterId || !canSave) return;
     setSaving(true);
-    const insertPayload: Partial<TagRow> = {
+    const tagType: BackpackTagType = singleUse ? "Single-Use" : "Story";
+    const insertPayload = {
       character_id: characterId,
       theme_id: null,
       name: newName.trim(),
-      type: newType,
+      type: tagType,
       is_scratched: false,
       is_negative: false,
     };
@@ -111,7 +115,7 @@ export default function BackpackView({
     }
     setNewName("");
     await fetchRows();
-  }, [characterId, canSave, newName, newType, fetchRows, toast]);
+  }, [characterId, canSave, newName, singleUse, fetchRows, toast]);
 
   const toggleScratch = useCallback(
     async (row: TagRow) => {
@@ -152,11 +156,11 @@ export default function BackpackView({
     [toast]
   );
 
-  const backpack = useMemo(
+  const storyRows = useMemo(
     () => rows.filter((r) => r.type === "Story"),
     [rows]
   );
-  const singleUse = useMemo(
+  const singleUseRows = useMemo(
     () => rows.filter((r) => r.type === "Single-Use"),
     [rows]
   );
@@ -176,21 +180,25 @@ export default function BackpackView({
               if (e.key === "Enter" && canSave) addTag();
             }}
           />
-          <Select
-            width="160px"
-            value={newType}
-            onChange={(e) => setNewType(e.target.value as BackpackTagType)}
-          >
-            <option value="Story">Story</option>
-            <option value="Single-Use">Single-Use</option>
-          </Select>
+          <FormControl display="flex" alignItems="center" width="160px">
+            <Switch
+              id="single-use"
+              isChecked={singleUse}
+              size="sm"
+              ml="2"
+              onChange={(e) => setSingleUse(e.target.checked)}
+            />
+            <FormLabel htmlFor="single-use" mb="0" ml="2" mr="0" fontSize={10}>
+              1-Use
+            </FormLabel>
+          </FormControl>
           <Button
             colorScheme="teal"
             onClick={addTag}
             isDisabled={!canSave}
             isLoading={saving}
           >
-            Add
+            +
           </Button>
         </HStack>
         {error ? (
@@ -201,19 +209,19 @@ export default function BackpackView({
         ) : null}
       </Box>
 
-      {singleUse.length > 0 && (
+      {singleUseRows.length > 0 && (
         <TagSection
           title="Single-Use Tags"
-          rows={singleUse}
+          rows={singleUseRows}
           onScratch={toggleScratch}
           onRemove={removeTag}
         />
       )}
 
-      {backpack.length > 0 && (
+      {storyRows.length > 0 && (
         <TagSection
           title="Story Tags"
-          rows={backpack}
+          rows={storyRows}
           onScratch={toggleScratch}
           onRemove={removeTag}
         />
@@ -264,7 +272,7 @@ function TagSection({
                   aria-label="toggle scratch"
                   size="sm"
                   variant="ghost"
-                  colorScheme={row.is_scratched ? "red" : "black"}
+                  color={row.is_scratched ? "red.500" : "gray.800"}
                   icon={<GiTripleScratches />}
                   onClick={() => onScratch(row)}
                 />
@@ -272,7 +280,7 @@ function TagSection({
               <Text
                 textDecor={row.is_scratched ? "line-through" : "none"}
                 opacity={row.is_scratched ? 0.6 : 1}
-                color={row.is_scratched ? "red" : "black"}
+                color={row.is_scratched ? "red.500" : "gray.800"}
               >
                 {row.name}
               </Text>
@@ -289,11 +297,6 @@ function TagSection({
             </Tooltip>
           </HStack>
         ))}
-        {rows.length === 0 ? (
-          <Text fontStyle="italic" color="gray.500">
-            None yet.
-          </Text>
-        ) : null}
       </VStack>
     </VStack>
   );

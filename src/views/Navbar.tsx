@@ -1,4 +1,3 @@
-// src/views/Navbar.tsx
 import { HamburgerIcon } from "@chakra-ui/icons";
 import {
   Button,
@@ -16,6 +15,7 @@ import {
   useColorModeValue,
   useDisclosure,
 } from "@chakra-ui/react";
+import { MdHome } from "react-icons/md";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -33,12 +33,20 @@ export default function NavBar() {
     else navigate("/", { replace: true });
   }
 
-  const baseLinkProps = {
+  const toolbarLinkProps = {
     px: 3,
     py: 2,
     borderRadius: "6px",
     color: inactiveColor,
     _activeLink: { color: "white", bg: "blue.600", fontWeight: "bold" },
+    onClick: onClose,
+  } as const;
+
+  const drawerLinkProps = {
+    px: 3,
+    py: 2,
+    borderRadius: "6px",
+    color: inactiveColor,
     onClick: onClose,
   } as const;
 
@@ -56,8 +64,27 @@ export default function NavBar() {
       top={0}
       zIndex={100}
     >
-      {/* Left: hamburger on mobile, inline links on desktop */}
+      {/* Left: home icon on mobile, inline links on desktop */}
       <HStack spacing={2}>
+        <IconButton
+          aria-label="Home"
+          icon={<MdHome size={20} />}
+          display={{ base: "inline-flex", md: "none" }}
+          variant="ghost"
+          onClick={() => navigate("/")}
+        />
+        <HStack spacing={2} display={{ base: "none", md: "flex" }}>
+          <Link as={NavLink} to="/" {...toolbarLinkProps}>
+            Home
+          </Link>
+          <Link as={NavLink} to="/profile" {...toolbarLinkProps}>
+            Profile
+          </Link>
+        </HStack>
+      </HStack>
+
+      {/* Right: hamburger on mobile, logout always */}
+      <HStack>
         <IconButton
           aria-label="Menu"
           icon={<HamburgerIcon />}
@@ -65,33 +92,20 @@ export default function NavBar() {
           variant="ghost"
           onClick={onOpen}
         />
-        <HStack spacing={2} display={{ base: "none", md: "flex" }}>
-          <Link as={NavLink} to="/" {...baseLinkProps}>
-            Home
-          </Link>
-          <Link as={NavLink} to="/profile" {...baseLinkProps}>
-            Profile
-          </Link>
-        </HStack>
       </HStack>
 
-      {/* Right: logout */}
-      <Button size="sm" colorScheme="red" onClick={logout}>
-        Log out
-      </Button>
-
       {/* Drawer for mobile */}
-      <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
+      <Drawer isOpen={isOpen} placement="right" onClose={onClose}>
         <DrawerOverlay />
         <DrawerContent>
           <DrawerCloseButton />
           <DrawerHeader>Menu</DrawerHeader>
           <DrawerBody>
             <Stack spacing={2}>
-              <Link as={NavLink} to="/" {...baseLinkProps}>
+              <Link as={NavLink} to="/" {...drawerLinkProps}>
                 Home
               </Link>
-              <Link as={NavLink} to="/profile" {...baseLinkProps}>
+              <Link as={NavLink} to="/profile" {...drawerLinkProps}>
                 Profile
               </Link>
               <Button

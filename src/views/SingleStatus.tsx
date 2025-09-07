@@ -157,58 +157,59 @@ export default function SingleStatus({
       w="full"
       bgColor={row.is_negative ? "red.50" : "green.50"}
     >
-      <HStack justify="space-between" align="start">
-        <VStack align="start" spacing={2} w="full">
-          <HStack w="full" spacing={3}>
-            <Badge colorScheme={highestActiveTier ? "purple" : "gray"}>
-              Tier {highestActiveTier}
-            </Badge>
-            <Input
-              size="sm"
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={saveNameIfChanged}
-              bgColor="white"
-            />
-          </HStack>
-
-          <HStack spacing={4}>
-            <Text fontSize="sm">Negative?</Text>
-            <Switch
-              isChecked={row.is_negative}
-              onChange={toggleNegative}
-              size="sm"
-            />
-            {TIER_NUMS.map((n) => {
-              const key = TIER_KEYS[n];
-              return (
-                <HStack key={n} spacing={1}>
-                  <Tooltip label={`Tier ${n}`}>
-                    <Checkbox
-                      isChecked={row[key]}
-                      onChange={() => toggleTier(n)}
-                      size="md"
-                      bgColor="white"
-                    />
-                  </Tooltip>
-                  <Text fontSize="sm">{n}</Text>
-                </HStack>
-              );
-            })}
-          </HStack>
-        </VStack>
-
-        <Tooltip label="Delete status">
-          <IconButton
-            aria-label="Delete"
-            icon={<DeleteIcon />}
+      <VStack align="start" spacing={2} w="full">
+        <HStack w="full" spacing={3}>
+          <Badge colorScheme={highestActiveTier ? "purple" : "gray"}>
+            Tier {highestActiveTier}
+          </Badge>
+          <Input
             size="sm"
-            colorScheme="red"
-            onClick={remove}
-            isLoading={saving}
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={saveNameIfChanged}
+            bgColor="white"
           />
-        </Tooltip>
-      </HStack>
+          <Tooltip label="Delete status">
+            <IconButton
+              aria-label="Delete"
+              icon={<DeleteIcon />}
+              size="sm"
+              colorScheme="red"
+              onClick={remove}
+              isLoading={saving}
+            />
+          </Tooltip>
+        </HStack>
+
+        <HStack>
+          <Switch
+            isChecked={row.is_negative}
+            onChange={toggleNegative}
+            size="sm"
+          />
+          <Text ml="0" fontSize="10">
+            Negative
+          </Text>
+        </HStack>
+        <HStack>
+          {TIER_NUMS.map((n) => {
+            const key = TIER_KEYS[n];
+            return (
+              <HStack key={n} spacing={1}>
+                <Tooltip label={`Tier ${n}`}>
+                  <Checkbox
+                    isChecked={row[key]}
+                    onChange={() => toggleTier(n)}
+                    size="md"
+                    bgColor="white"
+                  />
+                </Tooltip>
+                <Text fontSize="sm">{n}</Text>
+              </HStack>
+            );
+          })}
+        </HStack>
+      </VStack>
     </Box>
   );
 }

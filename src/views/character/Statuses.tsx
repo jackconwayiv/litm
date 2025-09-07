@@ -91,7 +91,7 @@ export default function Statuses({ characterId }: { characterId: string }) {
   };
 
   return (
-    <Box p={4}>
+    <Box>
       <Heading size="md" mb={3}>
         Statuses
       </Heading>
@@ -119,7 +119,7 @@ export default function Statuses({ characterId }: { characterId: string }) {
           size="sm"
         />
         <Button onClick={add} size="sm" colorScheme="teal">
-          Add Status
+          +
         </Button>
       </HStack>
     </Box>
