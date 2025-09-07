@@ -30,13 +30,32 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import BackpackView from "./character/BackpackView";
+import Statuses from "./character/Statuses";
 import ThemePage from "./character/ThemePage";
 import type { ThemeRow as SingleThemeRow } from "./SingleTheme";
 
 type ThemeRow = SingleThemeRow;
 
-type TabKey = "theme1" | "theme2" | "theme3" | "theme4";
-const ORDER: TabKey[] = ["theme1", "theme2", "theme3", "theme4"];
+type TabKey =
+  | "theme1"
+  | "theme2"
+  | "theme3"
+  | "theme4"
+  | "backpack"
+  | "statuses";
+
+const ORDER: TabKey[] = [
+  "theme1",
+  "theme2",
+  "theme3",
+  "theme4",
+  "backpack",
+  "statuses",
+];
+// below ORDER
+const isThemeTab = (k: TabKey) =>
+  k === "theme1" || k === "theme2" || k === "theme3" || k === "theme4";
 
 type CharacterRow = {
   id: string;
@@ -307,7 +326,7 @@ export default function SingleCharacter() {
           : prev
       );
       addModal.onClose();
-      // switch to Themes tabs. Resorting happens in render.
+
       if (pendingSlot) {
         setTab(ORDER[pendingSlot - 1]);
         window.location.hash = ORDER[pendingSlot - 1];
@@ -342,12 +361,10 @@ export default function SingleCharacter() {
   const themeSlots: (ThemeRow | null)[] = [0, 1, 2, 3].map(
     (i) => sorted[i] ?? null
   );
-  const labels = themeSlots.map((t) =>
-    t ? truncateThemeName(t.name) : "No Theme"
-  );
+
   const onTabChange = (i: number) => {
     const k = ORDER[i];
-    if (!themeSlots[i]) openAddTheme(i + 1); // open modal on "No Theme"
+    if (isThemeTab(k) && !themeSlots[i]) openAddTheme(i + 1);
     setTab(k);
     window.location.hash = k;
   };
@@ -387,17 +404,32 @@ export default function SingleCharacter() {
           width="100%"
         >
           <TabList>
-            {labels.map((label, i) => (
-              <Tab
-                key={i}
-                opacity={themeSlots[i] ? 1 : 0.6}
-                onClick={() => {
-                  if (!themeSlots[i]) openAddTheme(i + 1); // optional: immediate open on click
-                }}
-              >
-                {label}
-              </Tab>
-            ))}
+            {ORDER.map((k, i) => {
+              const theme = isThemeTab(k) ? themeSlots[i] : null;
+
+              const label =
+                k === "statuses"
+                  ? "Statuses"
+                  : k === "backpack"
+                  ? "Backpack"
+                  : theme
+                  ? truncateThemeName(theme.name)
+                  : "No Theme";
+
+              const opacity = isThemeTab(k) ? (theme ? 1 : 0.6) : 1;
+
+              return (
+                <Tab
+                  key={k}
+                  opacity={opacity}
+                  onClick={() => {
+                    if (isThemeTab(k) && !theme) openAddTheme(i + 1);
+                  }}
+                >
+                  {label}
+                </Tab>
+              );
+            })}
           </TabList>
         </Tabs>
       </HStack>
@@ -482,6 +514,16 @@ export default function SingleCharacter() {
               </Button>
             </Box>
           ))}
+        {tab === "backpack" && (
+          <Box p={3}>
+            <BackpackView characterId={data.character.id} />
+          </Box>
+        )}
+        {tab === "statuses" && (
+          <Box p={3}>
+            <Statuses characterId={data.character.id} />
+          </Box>
+        )}
       </Box>
 
       {/* Add Theme Modal */}
@@ -667,7 +709,7 @@ export default function SingleCharacter() {
                   return toast({ status: "error", title: error.message });
                 toast({ status: "success", title: "Character deleted" });
                 confirmDelete.onClose();
-                navigate("/characters", { replace: true }); // or navigate("/")
+                navigate("/", { replace: true });
               }}
               isLoading={deletingChar}
               loadingText="Deleting"
