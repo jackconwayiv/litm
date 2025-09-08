@@ -24,7 +24,7 @@ import {
   useToast,
   VStack,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   GiCrossedSwords,
   GiCrown,
@@ -33,21 +33,8 @@ import {
 } from "react-icons/gi";
 import { IoIosArrowDropdownCircle } from "react-icons/io";
 import { supabase } from "../lib/supabase";
+import type { Def, ThemeRow } from "../types/types";
 import PowerTags from "./PowerTags";
-
-type Def = { id: string; name: string };
-export type ThemeRow = {
-  id: string;
-  name: string;
-  quest: string | null;
-  improve: number;
-  abandon: number;
-  milestone: number;
-  is_retired: boolean;
-  is_scratched: boolean;
-  might_level_id: string;
-  type_id: string;
-};
 
 export default function SingleTheme({
   theme,
@@ -55,7 +42,7 @@ export default function SingleTheme({
   typeDefs,
   onDelete,
 }: {
-  theme: ThemeRow;
+  theme: ThemeRow; // from shared types (might_level_id | null)
   mightDefs: Def[];
   typeDefs: Def[];
   onDelete: (id: string) => void;
@@ -116,11 +103,26 @@ export default function SingleTheme({
       ? "purple.50"
       : "white";
 
+  useEffect(() => {
+    if (!editingTypes) return; // only normalize when the editor is open
+    setLocal((prev) => {
+      let next = prev;
+      if (!prev.type_id && typeDefs.length > 0) {
+        next = { ...next, type_id: typeDefs[0].id };
+      }
+      if (!prev.might_level_id && mightDefs.length > 0) {
+        next = { ...next, might_level_id: mightDefs[0].id };
+      }
+      return next;
+    });
+  }, [editingTypes, typeDefs, mightDefs]);
+
   return (
     <Box
       borderWidth="1px"
       rounded="lg"
       p={4}
+      m={0}
       shadow="sm"
       w="full"
       bg={bgColor}
@@ -137,25 +139,34 @@ export default function SingleTheme({
               flex="1"
             >
               <Select
-                value={local.type_id}
-                bgColor="white"
-                onChange={(e) => void save({ type_id: e.target.value })}
+                value={local.type_id ?? ""} // was local.type_id
+                onChange={(e) => void save({ type_id: e.target.value || null })}
                 size="sm"
+                bgColor="white"
                 isDisabled={saving}
               >
+                <option value="" disabled>
+                  Select type
+                </option>
                 {typeDefs.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
                 ))}
               </Select>
+
               <Select
-                value={local.might_level_id}
-                onChange={(e) => void save({ might_level_id: e.target.value })}
+                value={local.might_level_id ?? ""} // was local.might_level_id
+                onChange={(e) =>
+                  void save({ might_level_id: e.target.value || null })
+                }
                 size="sm"
                 bgColor="white"
                 isDisabled={saving}
               >
+                <option value="" disabled>
+                  Select might
+                </option>
                 {mightDefs.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}

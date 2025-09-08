@@ -33,10 +33,13 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import type { Character } from "../types/types";
+import type { CharacterRow } from "../types/types";
+import { buildCharacterBrief } from "../utils/character";
+
+type CharacterCardRow = CharacterRow & { created_at: string };
 
 export default function Home() {
-  const [chars, setChars] = useState<Character[]>([]);
+  const [chars, setChars] = useState<CharacterCardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -56,10 +59,16 @@ export default function Home() {
     setErr(null);
     const { data, error } = await supabase
       .from("characters")
-      .select("id,name,player_id,fellowship_id,promise,created_at")
-      .order("created_at", { ascending: false });
+      .select(
+        "id,name,player_id,fellowship_id,promise,created_at," +
+          "brief_trait_physical,brief_trait_personality,brief_race,brief_class"
+      )
+      .order("created_at", { ascending: false })
+      .returns<CharacterCardRow[]>(); // <-- here
+
     if (error) setErr(error.message);
-    setChars((data ?? []) as Character[]);
+    setChars(data ?? []);
+
     const { data: u } = await supabase.auth.getUser();
     const uid = u?.user?.id;
     const { data: profile } = await supabase
@@ -67,7 +76,7 @@ export default function Home() {
       .select("display_name")
       .eq("id", uid)
       .single();
-    setUsername(profile?.display_name);
+    setUsername(profile?.display_name ?? "");
     setLoading(false);
   }, []);
 
@@ -107,13 +116,10 @@ export default function Home() {
     onClose();
     toast({ status: "success", title: "Character created" });
 
-    // Navigate to the new character dashboard
     if (data?.id) {
       nav(`/c/${data.id}`);
       return;
     }
-
-    // Fallback refresh
     load();
   }
 
@@ -169,6 +175,12 @@ export default function Home() {
               <Heading size="sm" noOfLines={1}>
                 {c.name}
               </Heading>
+              <Text fontSize="xs" color="gray.600" mt={1}>
+                {buildCharacterBrief(c, {
+                  capitalizeTraits: true,
+                  titleCaseRaceClass: true,
+                })}
+              </Text>
               <Text fontSize="xs" color="gray.500" mt={1}>
                 Promise: {c.promise}
               </Text>
@@ -201,7 +213,6 @@ export default function Home() {
                   isDisabled={saving}
                 />
               </FormControl>
-              {/* Add more essential fields from characters table here if needed */}
             </Stack>
           </ModalBody>
           <ModalFooter>

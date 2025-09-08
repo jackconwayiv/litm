@@ -1,30 +1,26 @@
 // src/views/SingleAdventure.tsx
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  RepeatIcon,
-} from "@chakra-ui/icons";
+import { RepeatIcon } from "@chakra-ui/icons";
 import {
   Alert,
   AlertIcon,
+  Badge,
   Box,
   Button,
-  Collapse,
+  Card,
+  CardBody,
   Heading,
   HStack,
-  IconButton,
-  List,
-  ListItem,
+  SimpleGrid,
   Spacer,
   Spinner,
-  Tag,
-  TagLabel,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import type { CharacterRow } from "../types/types";
+import { buildCharacterBrief } from "../utils/character";
 
 type Adventure = {
   id: string;
@@ -43,23 +39,29 @@ type RosterRow = {
   character_created_at: string;
 };
 
+type BriefRow = Pick<
+  CharacterRow,
+  | "id"
+  | "brief_trait_physical"
+  | "brief_trait_personality"
+  | "brief_race"
+  | "brief_class"
+>;
+
 export default function SingleAdventure() {
   const { id } = useParams<{ id: string }>();
 
   const [uid, setUid] = useState<string | null>(null);
   const [adv, setAdv] = useState<Adventure | null>(null);
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [briefMap, setBriefMap] = useState<Record<string, BriefRow>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   const isOwner = useMemo(
     () => !!adv && !!uid && adv.owner_player_id === uid,
     [adv, uid]
   );
-
-  const toggle = (rowId: string) =>
-    setOpen((s) => ({ ...s, [rowId]: !s[rowId] }));
 
   const load = useCallback(async () => {
     setErr(null);
@@ -67,6 +69,7 @@ export default function SingleAdventure() {
     if (!id) {
       setAdv(null);
       setRoster([]);
+      setBriefMap({});
       setLoading(false);
       setErr("Missing adventure id.");
       return;
@@ -81,22 +84,46 @@ export default function SingleAdventure() {
         .from("adventures")
         .select("id,owner_player_id,name,subscribe_code,created_at")
         .eq("id", id)
-        .maybeSingle();
-
+        .maybeSingle<Adventure>();
       if (advErr) {
         setErr(advErr.message);
         setAdv(null);
         return;
       }
-
-      setAdv((advData ?? null) as Adventure | null);
+      setAdv(advData ?? null);
 
       const { data: rosterData, error: rErr } = await supabase
         .from("adventure_roster")
-        .select("*")
-        .eq("adventure_id", id);
+        .select(
+          "adventure_id,fellowship_id,character_id,character_name,owner_display_name,character_created_at"
+        )
+        .eq("adventure_id", id)
+        .returns<RosterRow[]>();
       if (rErr) setErr(rErr.message);
-      setRoster((rosterData ?? []) as RosterRow[]);
+      const rows = rosterData ?? [];
+      setRoster(rows);
+
+      // Fetch brief fields for all characters in one query
+      const ids = Array.from(new Set(rows.map((r) => r.character_id)));
+      if (ids.length > 0) {
+        const { data: briefs, error: bErr } = await supabase
+          .from("characters")
+          .select(
+            "id,brief_trait_physical,brief_trait_personality,brief_race,brief_class"
+          )
+          .in("id", ids)
+          .returns<BriefRow[]>();
+        if (!bErr && briefs) {
+          const map: Record<string, BriefRow> = {};
+          for (const b of briefs) map[b.id] = b;
+          setBriefMap(map);
+        } else if (bErr) {
+          // non-fatal: briefs can be empty
+          setBriefMap({});
+        }
+      } else {
+        setBriefMap({});
+      }
     } finally {
       setLoading(false);
     }
@@ -168,19 +195,11 @@ export default function SingleAdventure() {
         </Button>
       </HStack>
 
-      <HStack mb={4} gap={3}>
-        <Tag colorScheme="purple">
-          <TagLabel>Code: {adv.subscribe_code}</TagLabel>
-        </Tag>
-        {isOwner ? (
-          <Tag colorScheme="green">
-            <TagLabel>Owner</TagLabel>
-          </Tag>
-        ) : (
-          <Tag colorScheme="gray">
-            <TagLabel>Viewer</TagLabel>
-          </Tag>
-        )}
+      <HStack mb={4} gap={3} wrap="wrap">
+        <Badge colorScheme="purple">Code: {adv.subscribe_code}</Badge>
+        <Badge colorScheme={isOwner ? "green" : "gray"}>
+          {isOwner ? "Owner" : "Viewer"}
+        </Badge>
         <Text color="gray.600">
           Created {new Date(adv.created_at).toLocaleString()}
         </Text>
@@ -196,53 +215,38 @@ export default function SingleAdventure() {
         <Heading as="h2" size="md">
           Fellowship Roster
         </Heading>
+
         {roster.length === 0 ? (
           <Text>No characters enrolled yet.</Text>
         ) : (
-          <List spacing={2}>
-            {roster.map((r) => (
-              <ListItem
-                key={r.character_id}
-                p={2}
-                borderWidth="1px"
-                rounded="md"
-              >
-                <HStack align="center" gap={3}>
-                  <IconButton
-                    aria-label={open[r.character_id] ? "Collapse" : "Expand"}
-                    icon={
-                      open[r.character_id] ? (
-                        <ChevronDownIcon />
-                      ) : (
-                        <ChevronRightIcon />
-                      )
-                    }
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => toggle(r.character_id)}
-                  />
-                  <Text fontWeight="bold" flex="1">
-                    {r.character_name.toUpperCase()}
-                  </Text>
-                  <Tag size="sm">
-                    <TagLabel>Player: {r.owner_display_name}</TagLabel>
-                  </Tag>
-                </HStack>
-
-                <Collapse in={!!open[r.character_id]} animateOpacity>
-                  <VStack align="start" mt={2} spacing={1}>
-                    <Text fontSize="sm" color="gray.600">
-                      Character ID: <code>{r.character_id}</code>
-                    </Text>
-                    <Text fontSize="sm" color="gray.600">
-                      Joined on{" "}
-                      {new Date(r.character_created_at).toLocaleDateString()}
-                    </Text>
-                  </VStack>
-                </Collapse>
-              </ListItem>
-            ))}
-          </List>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
+            {roster.map((r) => {
+              const brief = buildCharacterBrief(
+                briefMap[r.character_id] ?? {},
+                {
+                  capitalizeTraits: true,
+                  titleCaseRaceClass: true,
+                }
+              );
+              return (
+                <Card key={r.character_id}>
+                  <CardBody>
+                    <VStack align="stretch" gap={1} justify="space-between">
+                      <Heading textAlign="center" size="sm" noOfLines={1}>
+                        {r.character_name}
+                      </Heading>
+                      <VStack>
+                        <Badge>{r.owner_display_name}</Badge>
+                      </VStack>
+                      <Text textAlign="center" fontSize="sm" color="gray.700">
+                        {brief || "—"}
+                      </Text>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </SimpleGrid>
         )}
       </VStack>
     </Box>
