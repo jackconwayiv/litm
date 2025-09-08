@@ -1,7 +1,7 @@
 export type Adventure = {
   id: string;
   name: string;
-  subscribe_code: string | null;
+  subscribe_code: string;
   owner_player_id: string;
 };
 
@@ -17,6 +17,7 @@ export type Character = {
   player_id: string;
   fellowship_id: string | null;
   promise: number;
+  created_at: string;
 };
 
 export type Theme = {
@@ -50,4 +51,10 @@ export type Status = {
   character_id: string | null;
   fellowship_id: string | null;
   adventure_id: string | null;
+};
+
+export type Profile = {
+  id: string;
+  display_name: string;
+  created_at: string;
 };

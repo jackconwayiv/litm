@@ -46,7 +46,6 @@ type TabKey =
   | "theme4"
   | "backpack"
   | "statuses";
-
 const ORDER: TabKey[] = [
   "theme1",
   "theme2",
@@ -55,7 +54,6 @@ const ORDER: TabKey[] = [
   "backpack",
   "statuses",
 ];
-// below ORDER
 const isThemeTab = (k: TabKey) =>
   k === "theme1" || k === "theme2" || k === "theme3" || k === "theme4";
 
@@ -91,6 +89,14 @@ type StatusRow = {
 type CharacterQuintessence = { quintessence_id: string; name: string };
 type Def = { id: string; name: string };
 
+type JoinedAdventure = {
+  id: string; // adventure id ("" if none)
+  name: string; // adventure name ("" if none)
+  subscribe_code: string; // "" if none
+  fellowship_id: string;
+  fellowship_name: string; // fellowships.name
+};
+
 type Loaded = {
   character: CharacterRow;
   themes: ThemeRow[];
@@ -99,6 +105,7 @@ type Loaded = {
   quintessences: CharacterQuintessence[];
   mightDefs: Def[];
   typeDefs: Def[];
+  joinedAdventure: JoinedAdventure | null;
 };
 
 const truncateThemeName = (s: string) => (s.length <= 20 ? s : s.slice(0, 20));
@@ -109,6 +116,11 @@ export default function SingleCharacter() {
   const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
+  // join/leave adventure UI state
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   // Add Theme modal state
   const addModal = useDisclosure();
@@ -149,17 +161,25 @@ export default function SingleCharacter() {
     setLoading(true);
     setErr(null);
 
+    // 1) character
     const { data: cRow, error: cErr } = await supabase
       .from("characters")
       .select("id,name,player_id,fellowship_id,promise")
       .eq("id", charId)
-      .single();
+      .single<CharacterRow>();
+
     if (cErr || !cRow) {
       setErr(cErr?.message ?? "Character not found.");
       setLoading(false);
       return;
     }
 
+    let joinedAdventure: JoinedAdventure | null = null;
+    if (cRow.fellowship_id) {
+      joinedAdventure = await hydrateJoinedAdventure(cRow.fellowship_id);
+    }
+
+    // 3) themes
     const { data: tRows, error: tErr } = await supabase
       .from("themes")
       .select(
@@ -172,6 +192,7 @@ export default function SingleCharacter() {
       return;
     }
 
+    // 4) tags
     const themeIds = (tRows ?? []).map((t) => t.id);
     const { data: tagRows, error: tagErr } = await supabase
       .from("tags")
@@ -190,6 +211,7 @@ export default function SingleCharacter() {
       return;
     }
 
+    // 5) might + type defs
     const { data: mightDefsRows, error: mErr } = await supabase
       .from("might_level_defs")
       .select("id,name")
@@ -210,6 +232,7 @@ export default function SingleCharacter() {
       return;
     }
 
+    // 6) statuses
     const { data: sRows, error: sErr } = await supabase
       .from("statuses")
       .select("*")
@@ -220,6 +243,7 @@ export default function SingleCharacter() {
       return;
     }
 
+    // 7) quintessences
     type QDefObj = { name: string };
     type QuintessenceJoined = {
       quintessence_id: string;
@@ -243,13 +267,14 @@ export default function SingleCharacter() {
     }));
 
     setData({
-      character: cRow as CharacterRow,
+      character: cRow,
       themes: (tRows ?? []) as ThemeRow[],
       tags: (tagRows ?? []) as TagRow[],
       statuses: (sRows ?? []) as StatusRow[],
       quintessences,
       mightDefs: (mightDefsRows ?? []) as Def[],
       typeDefs: (typeDefsRows ?? []) as Def[],
+      joinedAdventure,
     });
     setLoading(false);
   }, [charId]);
@@ -288,25 +313,159 @@ export default function SingleCharacter() {
 
   function openAddTheme(slot: number) {
     setPendingSlot(slot);
-    // sensible defaults
     const mightNames = ["Origin", "Adventure", "Greatness"];
     const originDef =
       data?.mightDefs.find((d) => d.name === "Origin") ??
-      // fallback to first available in your preferred order
       mightNames
         .map((n) => data?.mightDefs.find((d) => d.name === n))
         .find(Boolean) ??
       null;
 
     setNewMightId(originDef?.id ?? "");
-    if (data) {
-      setNewTypeId(data.typeDefs[0]?.id ?? "");
-    }
+    if (data) setNewTypeId(data.typeDefs[0]?.id ?? "");
     setNewThemeName("");
     addModal.onOpen();
   }
 
-  async function createTheme() {
+  async function ensureProfile(): Promise<string | null> {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u?.user) return null;
+    const myId = u.user.id;
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", myId)
+      .maybeSingle();
+
+    if (!prof) {
+      const meta = u.user.user_metadata as Record<string, unknown>;
+      const display_name =
+        (typeof meta.name === "string" && meta.name) ||
+        (u.user.email ? u.user.email.split("@")[0] : "Player");
+      const { error: insErr } = await supabase
+        .from("profiles")
+        .insert({ id: myId, display_name });
+      if (insErr) return null;
+    }
+    return myId;
+  }
+
+  const hydrateJoinedAdventure = useCallback(
+    async (fid: string): Promise<JoinedAdventure | null> => {
+      type FellowshipRow = {
+        id: string;
+        name: string | null;
+        adventure_id: string | null;
+      };
+      type AdvRow = { id: string; name: string; subscribe_code: string | null };
+
+      const { data: fRaw, error: fErr } = await supabase
+        .from("fellowships")
+        .select("id,name,adventure_id")
+        .eq("id", fid)
+        .maybeSingle<FellowshipRow>();
+      if (fErr || !fRaw) return null;
+
+      const fellowship_name = (fRaw.name ?? "").trim() || "Fellowship";
+
+      let adv: AdvRow | null = null;
+      if (fRaw.adventure_id) {
+        const { data: aRaw } = await supabase
+          .from("adventures")
+          .select("id,name,subscribe_code")
+          .eq("id", fRaw.adventure_id)
+          .maybeSingle<AdvRow>();
+        adv = aRaw ?? null;
+      }
+
+      // update the join code for UI convenience
+      setJoinCode((adv?.subscribe_code ?? "").toUpperCase());
+
+      return {
+        id: adv?.id ?? "",
+        name: adv?.name ?? "",
+        subscribe_code: adv?.subscribe_code ?? "",
+        fellowship_id: fRaw.id,
+        fellowship_name,
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    const fid = data?.character.fellowship_id;
+    if (fid) hydrateJoinedAdventure(fid);
+    else setData((p) => (p ? { ...p, joinedAdventure: null } : p));
+  }, [data?.character.fellowship_id, hydrateJoinedAdventure]);
+
+  async function joinAdventure() {
+    if (!data || !charId) return;
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== 4) {
+      toast({ status: "warning", title: "Enter the 4-letter code" });
+      return;
+    }
+    const pid = await ensureProfile();
+    if (!pid) {
+      toast({ status: "error", title: "Not authenticated" });
+      return;
+    }
+    setJoining(true);
+    const { error } = await supabase.rpc("rpc_join_fellowship_by_code", {
+      p_join_code: code,
+      p_character_id: charId,
+    });
+    setJoining(false);
+    if (error) {
+      toast({ status: "error", title: error.message });
+      return;
+    }
+
+    const { data: ch } = await supabase
+      .from("characters")
+      .select("fellowship_id")
+      .eq("id", charId)
+      .maybeSingle();
+
+    const fid = ch?.fellowship_id ?? null;
+    setData((prev) =>
+      prev
+        ? { ...prev, character: { ...prev.character, fellowship_id: fid } }
+        : prev
+    );
+    if (fid) await hydrateJoinedAdventure(fid);
+    toast({ status: "success", title: "Joined adventure" });
+  }
+
+  async function leaveAdventure() {
+    if (!data) return;
+    if (!data.character.fellowship_id) return;
+    setLeaving(true);
+    const { error } = await supabase
+      .from("characters")
+      .update({ fellowship_id: null })
+      .eq("id", data.character.id);
+    setLeaving(false);
+    if (error) {
+      toast({ status: "error", title: error.message });
+      return;
+    }
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            character: { ...prev.character, fellowship_id: null },
+            joinedAdventure: null,
+          }
+        : prev
+    );
+    setJoinCode("");
+    toast({ status: "success", title: "Left adventure" });
+  }
+
+  // create theme handler (was missing)
+  const handleCreateTheme = useCallback(async () => {
     if (!data || !charId) return;
     const name = newThemeName.trim();
     if (!name || !newTypeId || !newMightId) {
@@ -353,8 +512,18 @@ export default function SingleCharacter() {
       }
       toast({ status: "success", title: "Theme added" });
     }
-  }
+  }, [
+    addModal,
+    charId,
+    data,
+    newMightId,
+    newThemeName,
+    newTypeId,
+    pendingSlot,
+    toast,
+  ]);
 
+  const isJoined = !!data?.character.fellowship_id;
   const index = useMemo(() => ORDER.indexOf(tab), [tab]);
 
   if (loading) {
@@ -388,8 +557,6 @@ export default function SingleCharacter() {
     setTab(k);
     window.location.hash = k;
   };
-
-  const mightNames = ["Origin", "Adventure", "Greatness"];
 
   return (
     <Box>
@@ -436,7 +603,83 @@ export default function SingleCharacter() {
           </Button>
         </HStack>
       </HStack>
+
+      {/* Adventure join/leave section */}
+      {isJoined ? (
+        <HStack
+          justify="space-between"
+          align="center"
+          mt={2}
+          mb={3}
+          p={3}
+          borderWidth="1px"
+          rounded="md"
+          bg="blackAlpha.50"
+        >
+          <Box>
+            <Text fontSize="sm" color="gray.600"></Text>
+            <Heading size="sm">
+              Enrolled in {data.joinedAdventure?.name ?? "Adventure"}
+            </Heading>
+          </Box>
+          <HStack>
+            {data.joinedAdventure?.subscribe_code ? (
+              <Text fontSize="xs" color="gray.500">
+                Code: {data.joinedAdventure.subscribe_code}
+              </Text>
+            ) : null}
+            <Button
+              size="sm"
+              colorScheme="red"
+              onClick={leaveAdventure}
+              isLoading={leaving}
+            >
+              Leave
+            </Button>
+          </HStack>
+        </HStack>
+      ) : (
+        <HStack
+          as="form"
+          mt={2}
+          mb={3}
+          p={3}
+          borderWidth="1px"
+          rounded="md"
+          bg="blackAlpha.50"
+          onSubmit={(e) => {
+            e.preventDefault();
+            joinAdventure();
+          }}
+          gap={2}
+        >
+          <Input
+            value={joinCode}
+            onChange={(e) =>
+              setJoinCode(
+                e.target.value
+                  .toUpperCase()
+                  .replace(/[^A-Z]/g, "")
+                  .slice(0, 4)
+              )
+            }
+            placeholder="Join code (ABCD)"
+            maxLength={4}
+            fontFamily="mono"
+            w="180px"
+          />
+          <Button
+            colorScheme="teal"
+            onClick={joinAdventure}
+            isLoading={joining}
+          >
+            Join adventure
+          </Button>
+        </HStack>
+      )}
+
       <Divider />
+
       <HStack
         px={2}
         py={1}
@@ -467,7 +710,7 @@ export default function SingleCharacter() {
                   onClick={() => {
                     if (isThemeTab(k) && !theme) openAddTheme(i + 1);
                   }}
-                  aria-label={k} // helps when text is hidden on mobile
+                  aria-label={k}
                 >
                   {k === "backpack" ? (
                     <HStack spacing={1}>
@@ -630,7 +873,7 @@ export default function SingleCharacter() {
                 value={newMightId}
                 onChange={(e) => setNewMightId(e.target.value)}
               >
-                {mightNames.map((name) => {
+                {["Origin", "Adventure", "Greatness"].map((name) => {
                   const def = data.mightDefs.find((d) => d.name === name);
                   return def ? (
                     <option key={def.id} value={def.id}>
@@ -652,7 +895,7 @@ export default function SingleCharacter() {
             </Button>
             <Button
               colorScheme="teal"
-              onClick={createTheme}
+              onClick={handleCreateTheme}
               isLoading={creating}
               loadingText="Creating"
             >
@@ -661,6 +904,7 @@ export default function SingleCharacter() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
       {/* Character Settings Modal */}
       <Modal
         isOpen={settings.isOpen}
@@ -744,9 +988,8 @@ export default function SingleCharacter() {
           <ModalCloseButton isDisabled={deletingChar} />
           <ModalBody>
             <Text>
-              {" "}
               This action permanently deletes the character{" "}
-              <strong>{data.character.name}</strong> and all its data.{" "}
+              <strong>{data.character.name}</strong> and all its data.
             </Text>
           </ModalBody>
           <ModalFooter gap={2}>

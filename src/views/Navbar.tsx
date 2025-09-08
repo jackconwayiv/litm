@@ -1,5 +1,6 @@
 import { HamburgerIcon } from "@chakra-ui/icons";
 import {
+  Box,
   Button,
   Drawer,
   DrawerBody,
@@ -11,6 +12,7 @@ import {
   HStack,
   IconButton,
   Link,
+  Spacer,
   Stack,
   useColorModeValue,
   useDisclosure,
@@ -65,23 +67,45 @@ export default function NavBar() {
       zIndex={100}
     >
       {/* Left: home icon on mobile, inline links on desktop */}
-      <HStack spacing={2}>
-        <IconButton
-          aria-label="Home"
-          icon={<MdHome size={20} />}
-          display={{ base: "inline-flex", md: "none" }}
-          variant="ghost"
-          onClick={() => navigate("/")}
-        />
-        <HStack spacing={2} display={{ base: "none", md: "flex" }}>
-          <Link as={NavLink} to="/" {...toolbarLinkProps}>
-            Home
-          </Link>
-          <Link as={NavLink} to="/profile" {...toolbarLinkProps}>
-            Profile
-          </Link>
-        </HStack>
-      </HStack>
+      <Box as="nav" w="100%" px={4} py={2}>
+        <Flex align="center" gap={2}>
+          <IconButton
+            aria-label="Home"
+            icon={<MdHome size={20} />}
+            display={{ base: "inline-flex", md: "none" }}
+            variant="ghost"
+            onClick={() => navigate("/")}
+          />
+          <HStack spacing={2} display={{ base: "none", md: "flex" }}>
+            <Link as={NavLink} to="/" {...toolbarLinkProps}>
+              Home
+            </Link>
+            <Link as={NavLink} to="/adventures" {...toolbarLinkProps}>
+              Adventures
+            </Link>
+            <Link as={NavLink} to="/characters" {...toolbarLinkProps}>
+              Characters
+            </Link>
+            <Link as={NavLink} to="/profile" {...toolbarLinkProps}>
+              Profile
+            </Link>
+          </HStack>
+
+          <Spacer />
+
+          <Button
+            colorScheme="red"
+            size="sm"
+            display={{ base: "none", md: "inline-flex" }}
+            onClick={() => {
+              onClose?.();
+              logout();
+            }}
+          >
+            Sign Out
+          </Button>
+        </Flex>
+      </Box>
 
       {/* Right: hamburger on mobile, logout always */}
       <HStack>
@@ -105,17 +129,24 @@ export default function NavBar() {
               <Link as={NavLink} to="/" {...drawerLinkProps}>
                 Home
               </Link>
+              <Link as={NavLink} to="/adventures" {...drawerLinkProps}>
+                Adventures
+              </Link>
+              <Link as={NavLink} to="/characters" {...drawerLinkProps}>
+                Characters
+              </Link>
               <Link as={NavLink} to="/profile" {...drawerLinkProps}>
                 Profile
               </Link>
               <Button
                 colorScheme="red"
+                mt={10}
                 onClick={() => {
                   onClose();
                   logout();
                 }}
               >
-                Log out
+                Sign Out
               </Button>
             </Stack>
           </DrawerBody>
