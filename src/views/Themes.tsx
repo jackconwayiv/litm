@@ -14,11 +14,9 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import type { ThemeRow } from "./SingleTheme";
+import type { Def, ThemeRow } from "../types/types";
 import SingleTheme from "./SingleTheme";
-
 type Theme = ThemeRow;
-type Def = { id: string; name: string };
 
 export default function Themes({ characterId }: { characterId: string }) {
   const [themes, setThemes] = useState<Theme[] | null>(null);

@@ -2,7 +2,6 @@
 import { Box, Text } from "@chakra-ui/react";
 import type { Def, TagRow, ThemeRow } from "../../types/types";
 import SingleTheme from "../SingleTheme";
-// export type { ThemeRow } from "../../types/types";
 
 export default function ThemePage({
   theme,
