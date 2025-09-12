@@ -19,7 +19,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import type { CharacterRow } from "../types/types";
 import { buildCharacterBrief } from "../utils/character";
 
 type Adventure = {
@@ -30,31 +29,23 @@ type Adventure = {
   created_at: string;
 };
 
-type RosterRow = {
-  adventure_id: string;
-  fellowship_id: string;
+type RosterWithBriefRow = {
   character_id: string;
   character_name: string;
   owner_display_name: string;
   character_created_at: string;
+  brief_trait_physical: string;
+  brief_trait_personality: string;
+  brief_race: string;
+  brief_class: string;
 };
-
-type BriefRow = Pick<
-  CharacterRow,
-  | "id"
-  | "brief_trait_physical"
-  | "brief_trait_personality"
-  | "brief_race"
-  | "brief_class"
->;
 
 export default function SingleAdventure() {
   const { id } = useParams<{ id: string }>();
 
   const [uid, setUid] = useState<string | null>(null);
   const [adv, setAdv] = useState<Adventure | null>(null);
-  const [roster, setRoster] = useState<RosterRow[]>([]);
-  const [briefMap, setBriefMap] = useState<Record<string, BriefRow>>({});
+  const [roster, setRoster] = useState<RosterWithBriefRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -69,7 +60,6 @@ export default function SingleAdventure() {
     if (!id) {
       setAdv(null);
       setRoster([]);
-      setBriefMap({});
       setLoading(false);
       setErr("Missing adventure id.");
       return;
@@ -93,37 +83,15 @@ export default function SingleAdventure() {
       setAdv(advData ?? null);
 
       const { data: rosterData, error: rErr } = await supabase
-        .from("adventure_roster")
-        .select(
-          "adventure_id,fellowship_id,character_id,character_name,owner_display_name,character_created_at"
-        )
-        .eq("adventure_id", id)
-        .returns<RosterRow[]>();
-      if (rErr) setErr(rErr.message);
-      const rows = rosterData ?? [];
-      setRoster(rows);
+        .rpc("get_adventure_roster_with_brief", { p_adventure_id: id })
+        .returns<RosterWithBriefRow[]>();
 
-      // Fetch brief fields for all characters in one query
-      const ids = Array.from(new Set(rows.map((r) => r.character_id)));
-      if (ids.length > 0) {
-        const { data: briefs, error: bErr } = await supabase
-          .from("characters")
-          .select(
-            "id,brief_trait_physical,brief_trait_personality,brief_race,brief_class"
-          )
-          .in("id", ids)
-          .returns<BriefRow[]>();
-        if (!bErr && briefs) {
-          const map: Record<string, BriefRow> = {};
-          for (const b of briefs) map[b.id] = b;
-          setBriefMap(map);
-        } else if (bErr) {
-          // non-fatal: briefs can be empty
-          setBriefMap({});
-        }
-      } else {
-        setBriefMap({});
-      }
+      if (rErr) setErr(rErr.message);
+
+      const rows: RosterWithBriefRow[] = Array.isArray(rosterData)
+        ? rosterData
+        : [];
+      setRoster(rows);
     } finally {
       setLoading(false);
     }
@@ -222,25 +190,34 @@ export default function SingleAdventure() {
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
             {roster.map((r) => {
               const brief = buildCharacterBrief(
-                briefMap[r.character_id] ?? {},
                 {
-                  capitalizeTraits: true,
-                  titleCaseRaceClass: true,
-                }
+                  brief_trait_physical: r.brief_trait_physical,
+                  brief_trait_personality: r.brief_trait_personality,
+                  brief_race: r.brief_race,
+                  brief_class: r.brief_class,
+                },
+                { capitalizeTraits: true, titleCaseRaceClass: true }
               );
+
               return (
                 <Card key={r.character_id}>
                   <CardBody>
-                    <VStack align="stretch" gap={1} justify="space-between">
-                      <Heading textAlign="center" size="sm" noOfLines={1}>
+                    <VStack align="stretch" gap={1}>
+                      <Heading size="sm" noOfLines={1} textAlign="center">
                         {r.character_name}
                       </Heading>
-                      <VStack>
-                        <Badge>{r.owner_display_name}</Badge>
-                      </VStack>
-                      <Text textAlign="center" fontSize="sm" color="gray.700">
+                      <Text fontSize="sm" color="gray.700" textAlign="center">
                         {brief || "—"}
                       </Text>
+                      <HStack justify="space-between" mt={1}>
+                        <Badge>Player: {r.owner_display_name}</Badge>
+                        <Text fontSize="xs" color="gray.500">
+                          Joined{" "}
+                          {new Date(
+                            r.character_created_at
+                          ).toLocaleDateString()}
+                        </Text>
+                      </HStack>
                     </VStack>
                   </CardBody>
                 </Card>
