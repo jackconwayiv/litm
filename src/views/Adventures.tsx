@@ -20,7 +20,6 @@ import {
   IconButton,
   Input,
   SimpleGrid,
-  Spacer,
   Spinner,
   Tag,
   TagLabel,
@@ -185,32 +184,48 @@ export default function Adventures() {
 
   if (loading) {
     return (
-      <HStack p={6} spacing={3}>
-        <Spinner /> <Text>Loading…</Text>
+      <HStack p={{ base: 4, md: 6 }} spacing={2}>
+        <Spinner size="sm" /> <Text fontSize="sm">Loading…</Text>
       </HStack>
     );
   }
 
   return (
-    <Box p={4}>
-      <HStack mb={4}>
-        <Button leftIcon={<RepeatIcon />} onClick={load} variant="outline">
+    <Box
+      p={{ base: 2, md: 4 }}
+      w="full"
+      maxW="100%"
+      overflowX="hidden"
+      minW={0}
+    >
+      {/* Toolbar */}
+      <HStack mb={{ base: 2, md: 4 }} spacing={{ base: 2, md: 3 }}>
+        <Button
+          leftIcon={<RepeatIcon />}
+          onClick={load}
+          variant="outline"
+          size="sm"
+        >
           Refresh
         </Button>
-        <Tag size="md" colorScheme="gray">
+        <Tag size="sm" colorScheme="gray">
           <TagLabel>{rows.length} adventures</TagLabel>
         </Tag>
-        <Spacer />
       </HStack>
 
       {err && (
-        <Alert status="error" mb={4}>
+        <Alert status="error" mb={{ base: 3, md: 4 }}>
           <AlertIcon /> {err}
         </Alert>
       )}
 
-      <SimpleGrid columns={{ base: 2, md: 3, lg: 4 }} spacing={3}>
-        {/* Add Adventure card */}
+      <SimpleGrid
+        columns={{ base: 1, sm: 2, md: 3, lg: 4 }}
+        spacing={{ base: 2, md: 3 }}
+        w="full"
+        minW={0}
+      >
+        {/* Add Adventure */}
         <Card borderStyle="dashed" borderWidth="2px" borderColor="gray.300">
           <CardHeader pb={2}>
             <Heading size="sm">Add adventure</Heading>
@@ -222,6 +237,7 @@ export default function Adventures() {
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Adventure name"
                 isDisabled={savingCreate}
+                size="sm"
               />
             </VStack>
           </CardBody>
@@ -231,6 +247,8 @@ export default function Adventures() {
               onClick={createAdventure}
               isLoading={savingCreate}
               loadingText="Creating"
+              size="sm"
+              flexShrink={0}
             >
               Create
             </Button>
@@ -246,21 +264,22 @@ export default function Adventures() {
           return (
             <Card key={a.id} _hover={{ boxShadow: "md" }}>
               <CardHeader pb={2}>
-                <HStack>
+                <HStack w="full" minW={0} spacing={2}>
                   {isEditing ? (
                     <Input
                       size="sm"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       autoFocus
+                      flex="1 1 0"
+                      minW={0}
                     />
                   ) : (
-                    <Heading size="sm" noOfLines={1}>
+                    <Heading size="sm" noOfLines={1} minW={0} flex="1 1 0">
                       {a.name}
                     </Heading>
                   )}
-                  <Spacer />
-                  <Tag size="sm" colorScheme="purple">
+                  <Tag size="sm" colorScheme="purple" flexShrink={0}>
                     <TagLabel>{a.subscribe_code}</TagLabel>
                   </Tag>
                 </HStack>
@@ -269,7 +288,7 @@ export default function Adventures() {
               <CardBody
                 pt={0}
                 onClick={() => !isEditing && go(a.id)}
-                cursor="pointer"
+                cursor={isEditing ? "default" : "pointer"}
               >
                 <VStack align="start" spacing={1}>
                   <Text fontSize="xs" color="gray.500">
@@ -286,7 +305,7 @@ export default function Adventures() {
               <CardFooter pt={0}>
                 <HStack w="full" justify="space-between">
                   {isEditing ? (
-                    <HStack>
+                    <HStack spacing={2}>
                       <IconButton
                         aria-label="Save"
                         icon={<CheckIcon />}
@@ -294,6 +313,7 @@ export default function Adventures() {
                         colorScheme="teal"
                         onClick={saveEdit}
                         isLoading={savingEditId === a.id}
+                        flexShrink={0}
                       />
                       <IconButton
                         aria-label="Cancel"
@@ -304,6 +324,7 @@ export default function Adventures() {
                           setEditId(null);
                           setEditName("");
                         }}
+                        flexShrink={0}
                       />
                     </HStack>
                   ) : (
@@ -311,13 +332,14 @@ export default function Adventures() {
                       size="sm"
                       colorScheme="teal"
                       onClick={() => go(a.id)}
+                      flexShrink={0}
                     >
                       Open
                     </Button>
                   )}
 
                   {isOwner && !isEditing && (
-                    <HStack>
+                    <HStack spacing={2} flexShrink={0}>
                       <IconButton
                         aria-label="Rename"
                         icon={<EditIcon />}

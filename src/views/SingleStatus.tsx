@@ -13,6 +13,8 @@ import {
   Tooltip,
   useToast,
   VStack,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
@@ -151,15 +153,21 @@ export default function SingleStatus({
 
   return (
     <Box
-      p={3}
+      p={{ base: 2, md: 3 }}
       borderWidth="1px"
       rounded="lg"
       w="full"
+      maxW="100%"
+      overflowX="hidden"
       bgColor={row.is_negative ? "red.50" : "green.50"}
     >
-      <VStack align="start" spacing={2} w="full">
-        <HStack w="full" spacing={3}>
-          <Badge colorScheme={highestActiveTier ? "purple" : "gray"}>
+      <VStack align="start" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
+        {/* Header row: badge, name input, delete */}
+        <HStack w="full" minW={0} spacing={{ base: 2, md: 3 }}>
+          <Badge
+            colorScheme={highestActiveTier ? "purple" : "gray"}
+            flexShrink={0}
+          >
             Tier {highestActiveTier}
           </Badge>
           <Input
@@ -168,6 +176,8 @@ export default function SingleStatus({
             onChange={(e) => setNameDraft(e.target.value)}
             onBlur={saveNameIfChanged}
             bgColor="white"
+            flex="1 1 0"
+            minW={0}
           />
           <Tooltip label="Delete status">
             <IconButton
@@ -177,38 +187,44 @@ export default function SingleStatus({
               colorScheme="red"
               onClick={remove}
               isLoading={saving}
+              flexShrink={0}
             />
           </Tooltip>
         </HStack>
 
-        <HStack>
+        {/* Negative toggle */}
+        <HStack spacing={2}>
           <Switch
             isChecked={row.is_negative}
             onChange={toggleNegative}
             size="sm"
           />
-          <Text ml="0" fontSize="10">
+          <Text m={0} fontSize="xs">
             Negative
           </Text>
         </HStack>
-        <HStack>
+
+        {/* Tiers: wrap on mobile */}
+        <Wrap spacing={{ base: 2, md: 3 }}>
           {TIER_NUMS.map((n) => {
             const key = TIER_KEYS[n];
             return (
-              <HStack key={n} spacing={1}>
-                <Tooltip label={`Tier ${n}`}>
-                  <Checkbox
-                    isChecked={row[key]}
-                    onChange={() => toggleTier(n)}
-                    size="md"
-                    bgColor="white"
-                  />
-                </Tooltip>
-                <Text fontSize="sm">{n}</Text>
-              </HStack>
+              <WrapItem key={n}>
+                <HStack spacing={1}>
+                  <Tooltip label={`Tier ${n}`}>
+                    <Checkbox
+                      isChecked={row[key]}
+                      onChange={() => toggleTier(n)}
+                      size="sm"
+                      bgColor="white"
+                    />
+                  </Tooltip>
+                  <Text fontSize="sm">{n}</Text>
+                </HStack>
+              </WrapItem>
             );
           })}
-        </HStack>
+        </Wrap>
       </VStack>
     </Box>
   );

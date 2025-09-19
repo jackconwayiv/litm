@@ -1,4 +1,12 @@
-import { Button, HStack, Input, Select, Text, VStack } from "@chakra-ui/react";
+import {
+  Button,
+  HStack,
+  Input,
+  Select,
+  Stack,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import type { Def } from "../types/types";
 
@@ -32,21 +40,40 @@ export default function AddThemeInline({
   }, [typeDefs, orderedMight, typeId, mightId]);
 
   return (
-    <VStack align="stretch" p={2} borderWidth="1px" rounded="md" gap={2}>
+    <VStack
+      align="stretch"
+      p={{ base: 2, md: 3 }}
+      borderWidth="1px"
+      rounded="md"
+      spacing={{ base: 2, md: 3 }}
+      w="full"
+      minW={0}
+    >
       <Text fontSize="sm" fontWeight="semibold">
         Add Theme
       </Text>
+
       <Input
         size="sm"
         placeholder="Theme name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        flex="1 1 0"
+        minW={0}
       />
-      <HStack gap={2}>
+
+      <Stack
+        direction={{ base: "column", md: "row" }}
+        spacing={{ base: 2, md: 2 }}
+        w="full"
+        minW={0}
+      >
         <Select
           size="sm"
           value={typeId}
           onChange={(e) => setTypeId(e.target.value)}
+          flex="1 1 0"
+          minW={0}
         >
           {typeDefs.map((d) => (
             <option key={d.id} value={d.id}>
@@ -54,10 +81,13 @@ export default function AddThemeInline({
             </option>
           ))}
         </Select>
+
         <Select
           size="sm"
           value={mightId}
           onChange={(e) => setMightId(e.target.value)}
+          flex="1 1 0"
+          minW={0}
         >
           {orderedMight.map((d) => (
             <option key={d.id} value={d.id}>
@@ -65,10 +95,11 @@ export default function AddThemeInline({
             </option>
           ))}
         </Select>
-      </HStack>
-      <HStack justify="flex-end" gap={2}>
+      </Stack>
+
+      <HStack justify="flex-end" spacing={2}>
         {onCancel ? (
-          <Button size="sm" variant="ghost" onClick={onCancel}>
+          <Button size="sm" variant="ghost" onClick={onCancel} flexShrink={0}>
             Cancel
           </Button>
         ) : null}
@@ -82,6 +113,7 @@ export default function AddThemeInline({
             await onCreate(name.trim(), typeId, mightId);
             setBusy(false);
           }}
+          flexShrink={0}
         >
           Create
         </Button>

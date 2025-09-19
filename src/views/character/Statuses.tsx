@@ -5,6 +5,8 @@ import {
   Heading,
   Input,
   Spinner,
+  Stack,
+  Text,
   VStack,
   useToast,
 } from "@chakra-ui/react";
@@ -31,6 +33,7 @@ export default function Statuses({ characterId }: { characterId: string }) {
   const [rows, setRows] = useState<StatusRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -56,10 +59,12 @@ export default function Statuses({ characterId }: { characterId: string }) {
   }, [fetchAll]);
 
   const add = async () => {
-    if (!newName.trim()) return;
+    const name = newName.trim();
+    if (!name) return;
+    setAdding(true);
     const payload = {
       character_id: characterId,
-      name: newName.trim(),
+      name,
       is_negative: false,
       tier1: false,
       tier2: false,
@@ -73,6 +78,7 @@ export default function Statuses({ characterId }: { characterId: string }) {
       .insert(payload)
       .select()
       .single();
+    setAdding(false);
     if (error) {
       toast({
         status: "error",
@@ -91,17 +97,24 @@ export default function Statuses({ characterId }: { characterId: string }) {
   };
 
   return (
-    <Box>
-      <Heading size="md" mb={3}>
+    <Box w="full" maxW="100%" overflowX="hidden">
+      <Heading size="md" mb={{ base: 2, md: 3 }}>
         Statuses
       </Heading>
+
       {loading ? (
-        <Spinner size="sm" />
+        <HStack spacing={2}>
+          <Spinner size="sm" />
+          <Text fontSize="sm">Loading statuses…</Text>
+        </HStack>
       ) : (
-        <VStack align="stretch" spacing={3}>
+        <VStack align="stretch" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
           {rows.length === 0 ? (
-            <Box color="gray.500">No statuses yet.</Box>
+            <Box color="gray.500" fontSize="sm">
+              No statuses yet.
+            </Box>
           ) : null}
+
           {rows.map((r) => (
             <SingleStatus
               key={r.id}
@@ -111,17 +124,42 @@ export default function Statuses({ characterId }: { characterId: string }) {
           ))}
         </VStack>
       )}
-      <HStack align="stretch" spacing={3} mt={4}>
+
+      {/* Add row */}
+      <Stack
+        direction={{ base: "column", md: "row" }}
+        spacing={{ base: 2, md: 3 }}
+        mt={{ base: 3, md: 4 }}
+        w="full"
+        minW={0}
+        align={{ base: "stretch", md: "center" }}
+        as="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void add();
+        }}
+      >
         <Input
           placeholder="New status name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           size="sm"
+          flex="1 1 0"
+          minW={0}
         />
-        <Button onClick={add} size="sm" colorScheme="teal">
-          +
-        </Button>
-      </HStack>
+        <HStack spacing={2}>
+          <Button
+            onClick={add}
+            size="sm"
+            colorScheme="teal"
+            isLoading={adding}
+            isDisabled={!newName.trim()}
+            flexShrink={0}
+          >
+            +
+          </Button>
+        </HStack>
+      </Stack>
     </Box>
   );
 }

@@ -11,10 +11,12 @@ import {
   Heading,
   HStack,
   SimpleGrid,
-  Spacer,
   Spinner,
+  Stack,
   Text,
   VStack,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -98,7 +100,7 @@ export default function SingleAdventure() {
   }, [id]);
 
   useEffect(() => {
-    load();
+    void load();
     if (!id) return;
 
     const ch = supabase
@@ -111,7 +113,7 @@ export default function SingleAdventure() {
           table: "adventures",
           filter: `id=eq.${id}`,
         },
-        () => load()
+        () => void load()
       )
       .on(
         "postgres_changes",
@@ -121,12 +123,12 @@ export default function SingleAdventure() {
           table: "fellowships",
           filter: `adventure_id=eq.${id}`,
         },
-        () => load()
+        () => void load()
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "characters" },
-        () => load()
+        () => void load()
       )
       .subscribe();
 
@@ -137,57 +139,92 @@ export default function SingleAdventure() {
 
   if (loading) {
     return (
-      <HStack p={4}>
-        <Spinner /> <Text>Loading…</Text>
+      <HStack p={{ base: 3, md: 4 }} spacing={2}>
+        <Spinner size="sm" /> <Text fontSize="sm">Loading…</Text>
       </HStack>
     );
   }
 
   if (!adv) {
     return (
-      <Alert status="error" mt={4}>
+      <Alert status="error" mt={{ base: 3, md: 4 }}>
         <AlertIcon /> Adventure not found.
       </Alert>
     );
   }
 
   return (
-    <Box p={4}>
-      <HStack mb={2}>
-        <Heading as="h1" size="lg">
+    <Box
+      p={{ base: 2, md: 4 }}
+      w="full"
+      maxW="100%"
+      overflowX="hidden"
+      minW={0}
+    >
+      {/* Header row: wraps on mobile */}
+      <Stack
+        direction={{ base: "column", md: "row" }}
+        spacing={{ base: 2, md: 3 }}
+        align={{ base: "stretch", md: "center" }}
+        justify="space-between"
+        mb={{ base: 2, md: 3 }}
+        w="full"
+        minW={0}
+      >
+        <Heading as="h1" size="lg" noOfLines={1} minW={0}>
           {adv.name}
         </Heading>
-        <Spacer />
-        <Button leftIcon={<RepeatIcon />} onClick={load} variant="outline">
+        <Button
+          leftIcon={<RepeatIcon />}
+          onClick={() => void load()}
+          variant="outline"
+          size="sm"
+          alignSelf={{ base: "flex-start", md: "auto" }}
+          flexShrink={0}
+        >
           Refresh
         </Button>
-      </HStack>
+      </Stack>
 
-      <HStack mb={4} gap={3} wrap="wrap">
-        <Badge colorScheme="purple">Code: {adv.subscribe_code}</Badge>
-        <Badge colorScheme={isOwner ? "green" : "gray"}>
-          {isOwner ? "Owner" : "Viewer"}
-        </Badge>
-        <Text color="gray.600">
-          Created {new Date(adv.created_at).toLocaleString()}
-        </Text>
-      </HStack>
+      {/* Meta badges: wrap nicely */}
+      <Wrap spacing={{ base: 2, md: 3 }} mb={{ base: 3, md: 4 }}>
+        <WrapItem>
+          <Badge colorScheme="purple">Code: {adv.subscribe_code}</Badge>
+        </WrapItem>
+        <WrapItem>
+          <Badge colorScheme={isOwner ? "green" : "gray"}>
+            {isOwner ? "Owner" : "Viewer"}
+          </Badge>
+        </WrapItem>
+        <WrapItem>
+          <Text color="gray.600" fontSize="sm">
+            Created {new Date(adv.created_at).toLocaleString()}
+          </Text>
+        </WrapItem>
+      </Wrap>
 
       {err && (
-        <Alert status="error" mb={4}>
+        <Alert status="error" mb={{ base: 3, md: 4 }}>
           <AlertIcon /> {err}
         </Alert>
       )}
 
-      <VStack align="stretch" gap={2}>
+      <VStack align="stretch" spacing={{ base: 2, md: 3 }}>
         <Heading as="h2" size="md">
           Fellowship Roster
         </Heading>
 
         {roster.length === 0 ? (
-          <Text>No characters enrolled yet.</Text>
+          <Text color="gray.600" fontSize="sm">
+            No characters enrolled yet.
+          </Text>
         ) : (
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
+          <SimpleGrid
+            columns={{ base: 1, sm: 2, md: 3, lg: 4 }}
+            spacing={{ base: 2, md: 3 }}
+            w="full"
+            minW={0}
+          >
             {roster.map((r) => {
               const brief = buildCharacterBrief(
                 {
@@ -202,16 +239,33 @@ export default function SingleAdventure() {
               return (
                 <Card key={r.character_id}>
                   <CardBody>
-                    <VStack align="stretch" gap={1}>
-                      <Heading size="sm" noOfLines={1} textAlign="center">
+                    <VStack align="stretch" spacing={1}>
+                      <Heading
+                        size="sm"
+                        noOfLines={1}
+                        textAlign="center"
+                        minW={0}
+                      >
                         {r.character_name}
                       </Heading>
-                      <Text fontSize="sm" color="gray.700" textAlign="center">
+                      <Text
+                        fontSize="sm"
+                        color="gray.700"
+                        textAlign="center"
+                        wordBreak="break-word"
+                      >
                         {brief || "—"}
                       </Text>
-                      <HStack justify="space-between" mt={1}>
-                        <Badge>Player: {r.owner_display_name}</Badge>
-                        <Text fontSize="xs" color="gray.500">
+                      <HStack justify="space-between" mt={1} minW={0}>
+                        <Badge flexShrink={0}>
+                          Player: {r.owner_display_name}
+                        </Badge>
+                        <Text
+                          fontSize="xs"
+                          color="gray.500"
+                          noOfLines={1}
+                          minW={0}
+                        >
                           Joined{" "}
                           {new Date(
                             r.character_created_at

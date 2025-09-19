@@ -1,4 +1,12 @@
-import { HStack, Tab, TabList, Tabs, Text } from "@chakra-ui/react";
+import {
+  Box,
+  HStack,
+  Tab,
+  TabList,
+  Tabs,
+  Text,
+  useBreakpointValue,
+} from "@chakra-ui/react";
 import { PiBackpackFill, PiSpiralBold } from "react-icons/pi";
 import type { TabKey, ThemeRow } from "../types/types";
 import { TAB_ORDER, isThemeTab } from "../types/types";
@@ -19,25 +27,42 @@ export default function ThemeTabs({
   onEmptyThemeClick,
 }: Props) {
   const index = TAB_ORDER.indexOf(active);
-
+  const isFitted = useBreakpointValue({ base: false, md: true });
   return (
-    <HStack
-      px={2}
-      py={1}
+    <Box
+      px={{ base: 1, md: 2 }}
+      py={{ base: 1, md: 1 }}
       position="sticky"
       top={0}
       zIndex={10}
       bg="chakra-body-bg"
+      borderBottomWidth="1px"
+      w="full"
+      maxW="100vw"
+      overflowX="hidden" // ensure the page never scrolls horizontally
     >
       <Tabs
         index={index}
         onChange={(i) => onChange(TAB_ORDER[i], i)}
         variant="soft-rounded"
-        isFitted
-        overflowX="auto"
-        w="100%"
+        isFitted={isFitted}
+        w="full"
       >
-        <TabList>
+        <TabList
+          // The bar itself can scroll on small screens
+          overflowX="auto"
+          overflowY="hidden"
+          whiteSpace="nowrap"
+          // Hide scrollbar cross-platform without disabling scroll
+          sx={{
+            WebkitOverflowScrolling: "touch",
+            "::-webkit-scrollbar": { display: "none" },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
+          gap={{ base: 1, md: 2 }}
+          px={{ base: 1, md: 1 }}
+        >
           {(() => {
             let t = 0; // theme slot pointer
             return TAB_ORDER.map((k) => {
@@ -50,14 +75,19 @@ export default function ThemeTabs({
                 t += 1;
               }
 
-              const opacity = isThemeTab(k) ? (theme ? 1 : 0.6) : 1;
+              const opacity = isThemeTab(k) ? (theme ? 1 : 0.7) : 1;
 
               return (
                 <Tab
                   key={k}
                   opacity={opacity}
-                  fontSize={{ base: "12", md: "14" }}
-                  p={1}
+                  px={{ base: 2, md: 3 }}
+                  py={{ base: 1, md: 1 }}
+                  fontSize={{ base: "xs", md: "sm" }}
+                  lineHeight={1.1}
+                  // prevent each tab from forcing the bar wider than the viewport
+                  maxW={{ base: "42vw", md: "none" }}
+                  minW="auto"
                   onClick={() => {
                     if (isThemeTab(k) && !theme && slotIndex1Based) {
                       onEmptyThemeClick(slotIndex1Based);
@@ -66,7 +96,7 @@ export default function ThemeTabs({
                   aria-label={k}
                 >
                   {k === "bio" ? (
-                    "Bio"
+                    <Text noOfLines={1}>Bio</Text>
                   ) : k === "backpack" ? (
                     <HStack gap={1}>
                       <PiBackpackFill />
@@ -82,9 +112,12 @@ export default function ThemeTabs({
                       </Text>
                     </HStack>
                   ) : theme ? (
-                    truncate(theme.name)
+                    // Truncate safely with ellipsis; give each tab a cap width on mobile
+                    <Text noOfLines={1} title={theme.name}>
+                      {truncate(theme.name)}
+                    </Text>
                   ) : (
-                    "No Theme"
+                    <Text noOfLines={1}>No Theme</Text>
                   )}
                 </Tab>
               );
@@ -92,6 +125,6 @@ export default function ThemeTabs({
           })()}
         </TabList>
       </Tabs>
-    </HStack>
+    </Box>
   );
 }

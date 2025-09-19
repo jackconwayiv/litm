@@ -25,7 +25,7 @@ import { supabase } from "../lib/supabase";
 type ProfileRow = {
   id: string;
   display_name: string;
-  active_character_id: string | null; // <- nullable
+  active_character_id: string | null;
 };
 
 export default function Profile() {
@@ -76,7 +76,7 @@ export default function Profile() {
         setLoading(false);
         return;
       }
-      setMe({ id: uid, display_name, active_character_id: null }); // <- include null
+      setMe({ id: uid, display_name, active_character_id: null });
       setName(display_name);
     } else {
       const row = data as ProfileRow;
@@ -88,7 +88,7 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   async function save() {
@@ -116,54 +116,64 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <Center py={16}>
-        <HStack spacing={3}>
-          <Spinner />
-          <Text>Loading profile…</Text>
+      <Center py={{ base: 10, md: 16 }}>
+        <HStack spacing={2}>
+          <Spinner size="sm" />
+          <Text fontSize="sm">Loading profile…</Text>
         </HStack>
       </Center>
     );
   }
 
   return (
-    <Box p={4}>
-      <Heading size="lg" mb={4}>
+    <Box
+      p={{ base: 2, md: 4 }}
+      w="full"
+      maxW="100%"
+      overflowX="hidden"
+      minW={0}
+    >
+      <Heading size="lg" mb={{ base: 2, md: 4 }}>
         Profile
       </Heading>
 
       {err && (
-        <Alert status="error" mb={4}>
+        <Alert status="error" mb={{ base: 3, md: 4 }}>
           <AlertIcon />
           {err}
         </Alert>
       )}
 
       {me ? (
-        <Card variant="outline">
-          <CardHeader pb={2}>
+        <Card variant="outline" w="full" minW={0}>
+          <CardHeader pb={{ base: 1, md: 2 }}>
             <Heading size="md">Account</Heading>
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="gray.500" noOfLines={1} minW={0}>
               Current Profile Name: {me.display_name}
             </Text>
           </CardHeader>
           <Divider />
           <CardBody>
-            <Stack spacing={4}>
+            <Stack spacing={{ base: 3, md: 4 }} w="full" minW={0}>
               <FormControl>
-                <FormLabel>Update Profile Name:</FormLabel>
+                <FormLabel fontSize="sm" mb={1}>
+                  Update Profile Name
+                </FormLabel>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Display name"
+                  size="sm"
                 />
               </FormControl>
 
-              <HStack>
+              <HStack justify="flex-end" spacing={2}>
                 <Button
                   colorScheme="teal"
                   onClick={save}
                   isLoading={saving}
                   loadingText="Saving"
+                  size="sm"
                 >
                   Save
                 </Button>

@@ -2,12 +2,14 @@
 import {
   Alert,
   AlertIcon,
+  Box,
   Button,
   HStack,
   Input,
   Select,
   SimpleGrid,
   Spinner,
+  Stack,
   Text,
   useToast,
   VStack,
@@ -16,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import type { Def, ThemeRow } from "../types/types";
 import SingleTheme from "./SingleTheme";
+
 type Theme = ThemeRow;
 
 export default function Themes({ characterId }: { characterId: string }) {
@@ -53,8 +56,8 @@ export default function Themes({ characterId }: { characterId: string }) {
 
     setMightDefs(sortedMl);
     setTypeDefs(tt ?? []);
-    if (sortedMl && sortedMl.length && !tMightId) setTMightId(sortedMl[0].id);
-    if (tt && tt.length && !tTypeId) setTTypeId(tt[0].id);
+    if (sortedMl.length && !tMightId) setTMightId(sortedMl[0].id);
+    if ((tt ?? []).length && !tTypeId) setTTypeId((tt ?? [])[0].id);
   }, [tMightId, tTypeId]);
 
   const load = useCallback(async () => {
@@ -114,7 +117,7 @@ export default function Themes({ characterId }: { characterId: string }) {
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`;
-    const optimistic = {
+    const optimistic: Theme = {
       id: tempId,
       name,
       quest: null,
@@ -125,7 +128,7 @@ export default function Themes({ characterId }: { characterId: string }) {
       is_scratched: false,
       might_level_id: tMightId,
       type_id: tTypeId,
-    } as Theme; // Theme = ThemeRow
+    };
 
     setThemes((prev) => (prev ? [...prev, optimistic] : [optimistic]));
     setTName(""); // clear immediately
@@ -148,7 +151,6 @@ export default function Themes({ characterId }: { characterId: string }) {
       // rollback
       setThemes((prev) => prev?.filter((t) => t.id !== tempId) ?? null);
       setErr(error.message);
-      // optional toast if you already use one:
       toast({
         status: "error",
         title: "Add failed",
@@ -156,14 +158,10 @@ export default function Themes({ characterId }: { characterId: string }) {
       });
       return;
     }
-
-    // success: no reload needed; realtime will confirm. If you prefer, you can call load().
-    // await load();
   }
 
   async function deleteTheme(id: string) {
     setErr(null);
-    // optimistic remove
     const prev = themes;
     setThemes((curr) => (curr ? curr.filter((t) => t.id !== id) : curr));
 
@@ -178,16 +176,14 @@ export default function Themes({ characterId }: { characterId: string }) {
       });
       throw error;
     }
-    // toast({ status: "success", title: "Theme deleted" });
-    // no immediate reload; realtime or next interaction will keep it fresh
   }
 
   const canAdd = !!themes && themes.length < 4;
 
   return (
-    <VStack align="start" spacing={2} w="full">
+    <VStack align="start" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
       {err && (
-        <Alert status="error" variant="subtle">
+        <Alert status="error" variant="subtle" w="full">
           <AlertIcon />
           {err}
         </Alert>
@@ -205,70 +201,87 @@ export default function Themes({ characterId }: { characterId: string }) {
               No themes
             </Text>
           )}
+
           {/* Add Theme Row */}
           {canAdd && (
-            <HStack
+            <Stack
               as="form"
+              direction={{ base: "column", md: "row" }}
               onSubmit={(e) => {
                 e.preventDefault();
                 void addTheme();
               }}
-              spacing={2}
+              spacing={{ base: 2, md: 2 }}
               w="full"
+              minW={0}
+              align={{ base: "stretch", md: "center" }}
             >
               <Input
                 size="sm"
                 placeholder="Theme name"
                 value={tName}
                 onChange={(e) => setTName(e.target.value)}
-                maxW="220px"
+                flex="1 1 0"
+                minW={0}
               />
-              <Select
-                size="sm"
-                value={tTypeId}
-                onChange={(e) => setTTypeId(e.target.value)}
-                maxW="180px"
-              >
-                {typeDefs.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                size="sm"
-                value={tMightId}
-                onChange={(e) => setTMightId(e.target.value)}
-                maxW="180px"
-              >
-                {mightDefs.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Button type="submit" size="sm" colorScheme="teal">
-                Add
-              </Button>
-            </HStack>
+              <HStack spacing={{ base: 2, md: 2 }} w="full" minW={0}>
+                <Select
+                  size="sm"
+                  value={tTypeId}
+                  onChange={(e) => setTTypeId(e.target.value)}
+                  flex="1 1 0"
+                  minW={0}
+                >
+                  {typeDefs.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  size="sm"
+                  value={tMightId}
+                  onChange={(e) => setTMightId(e.target.value)}
+                  flex="1 1 0"
+                  minW={0}
+                >
+                  {mightDefs.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="submit"
+                  size="sm"
+                  colorScheme="teal"
+                  flexShrink={0}
+                >
+                  Add
+                </Button>
+              </HStack>
+            </Stack>
           )}
+
           {/* Render Theme Cards */}
           {themes && themes.length > 0 && (
-            <SimpleGrid
-              w="full"
-              columns={{ base: 1, sm: 2, md: 2, lg: 4 }}
-              spacing={3}
-            >
-              {themes.map((t) => (
-                <SingleTheme
-                  key={t.id}
-                  theme={t}
-                  mightDefs={mightDefs}
-                  typeDefs={typeDefs}
-                  onDelete={(id) => deleteTheme(id)}
-                />
-              ))}
-            </SimpleGrid>
+            <Box w="full" maxW="100%" overflowX="hidden">
+              <SimpleGrid
+                w="full"
+                columns={{ base: 1, sm: 1, md: 2, lg: 4 }}
+                spacing={{ base: 2, md: 3 }}
+              >
+                {themes.map((t) => (
+                  <SingleTheme
+                    key={t.id}
+                    theme={t}
+                    mightDefs={mightDefs}
+                    typeDefs={typeDefs}
+                    onDelete={(id) => deleteTheme(id)}
+                  />
+                ))}
+              </SimpleGrid>
+            </Box>
           )}
         </>
       )}

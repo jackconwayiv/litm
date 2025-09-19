@@ -3,11 +3,13 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import {
   Alert,
   AlertIcon,
+  Box,
   Button,
   HStack,
   IconButton,
   Input,
   Spinner,
+  Stack,
   Text,
   Tooltip,
   VStack,
@@ -21,7 +23,7 @@ type TagRow = {
   id: string;
   theme_id: string | null;
   name: string;
-  type: string; // 'Power' | 'Weakness' | 'Story' | ...
+  type: "Power" | "Weakness" | "Story" | string;
   is_scratched: boolean | null;
   is_negative: boolean | null;
   created_at?: string;
@@ -32,7 +34,7 @@ const TABLE = "tags";
 export default function PowerTags({
   themeId,
   editing,
-  tagType, // e.g. "Power" or "Weakness"
+  tagType, // "Power" | "Weakness"
   scratchable, // true for Power, false for Weakness
 }: {
   themeId: string;
@@ -140,15 +142,17 @@ export default function PowerTags({
 
   if (loading) {
     return (
-      <HStack spacing={2}>
-        <Spinner size="xs" />{" "}
-        <Text fontSize="sm">Loading {tagType.toLowerCase()} tags…</Text>
+      <HStack spacing={2} minW={0}>
+        <Spinner size="xs" />
+        <Text fontSize="sm" noOfLines={1}>
+          Loading {tagType.toLowerCase()} tags…
+        </Text>
       </HStack>
     );
   }
 
   return (
-    <VStack align="stretch" spacing={2}>
+    <VStack align="stretch" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
       {err && (
         <Alert status="error" variant="subtle">
           <AlertIcon /> {err}
@@ -156,15 +160,17 @@ export default function PowerTags({
       )}
 
       {/* rows */}
-      <VStack align="stretch" spacing={1}>
+      <VStack align="stretch" spacing={1} w="full" minW={0}>
         {(tags ?? []).map((t) =>
           editing ? (
-            <HStack key={t.id} spacing={2} justify="space-between">
+            <HStack key={t.id} spacing={2} w="full" minW={0}>
               <Input
                 size="sm"
                 value={t.name}
                 onChange={(e) => void rename(t.id, e.target.value)}
                 bg="white"
+                flex="1 1 0"
+                minW={0}
               />
               <Tooltip label={`Delete ${tagType.toLowerCase()} tag`}>
                 <IconButton
@@ -174,6 +180,7 @@ export default function PowerTags({
                   colorScheme="red"
                   variant="ghost"
                   onClick={() => void del(t.id)}
+                  flexShrink={0}
                 />
               </Tooltip>
             </HStack>
@@ -185,66 +192,74 @@ export default function PowerTags({
               m={0}
               justify="space-between"
               w="full"
+              minW={0}
               bgColor={tagType === "Weakness" ? "orange.50" : "yellow.50"}
+              rounded="sm"
             >
-              {tagType === "Weakness" && (
-                <IconButton
-                  aria-label="Weakness Tag"
-                  icon={<FiChevronsDown />}
-                  variant="ghost"
-                  size="sm"
-                  isDisabled={true}
-                />
-              )}
-              {scratchable && (
-                <Tooltip label="Toggle scratched">
+              <HStack spacing={1} flexShrink={0}>
+                {tagType === "Weakness" && (
                   <IconButton
-                    aria-label="Toggle scratched"
-                    icon={<GiTripleScratches />}
+                    aria-label="Weakness Tag"
+                    icon={<FiChevronsDown />}
                     variant="ghost"
                     size="sm"
-                    colorScheme={t.is_scratched ? "red" : "gray"}
-                    onClick={async () => {
-                      const next = !t.is_scratched;
-                      // optimistic toggle
-                      setTags((prev) =>
-                        prev
-                          ? prev.map((x) =>
-                              x.id === t.id ? { ...x, is_scratched: next } : x
-                            )
-                          : prev
-                      );
-                      const { error } = await supabase
-                        .from(TABLE)
-                        .update({ is_scratched: next })
-                        .eq("id", t.id);
-                      if (error) {
-                        setErr(error.message);
-                        // rollback
+                    isDisabled
+                  />
+                )}
+                {scratchable && (
+                  <Tooltip label="Toggle scratched">
+                    <IconButton
+                      aria-label="Toggle scratched"
+                      icon={<GiTripleScratches />}
+                      variant="ghost"
+                      size="sm"
+                      colorScheme={t.is_scratched ? "red" : "gray"}
+                      onClick={async () => {
+                        const next = !t.is_scratched;
+                        // optimistic toggle
                         setTags((prev) =>
                           prev
                             ? prev.map((x) =>
-                                x.id === t.id
-                                  ? { ...x, is_scratched: t.is_scratched }
-                                  : x
+                                x.id === t.id ? { ...x, is_scratched: next } : x
                               )
                             : prev
                         );
-                      }
-                    }}
-                  />
-                </Tooltip>
-              )}
-              <Text
-                flex="1"
-                fontWeight="semibold"
-                color={scratchable && t.is_scratched ? "red" : "black"}
-                textDecoration={
-                  scratchable && t.is_scratched ? "line-through" : "none"
-                }
-              >
-                {t.name || `Untitled ${tagType} Tag`}
-              </Text>
+                        const { error } = await supabase
+                          .from(TABLE)
+                          .update({ is_scratched: next })
+                          .eq("id", t.id);
+                        if (error) {
+                          setErr(error.message);
+                          // rollback
+                          setTags((prev) =>
+                            prev
+                              ? prev.map((x) =>
+                                  x.id === t.id
+                                    ? { ...x, is_scratched: t.is_scratched }
+                                    : x
+                                )
+                              : prev
+                          );
+                        }
+                      }}
+                    />
+                  </Tooltip>
+                )}
+              </HStack>
+
+              <Box flex="1 1 0" minW={0}>
+                <Text
+                  fontWeight="semibold"
+                  color={scratchable && t.is_scratched ? "red.600" : "black"}
+                  textDecoration={
+                    scratchable && t.is_scratched ? "line-through" : "none"
+                  }
+                  noOfLines={1}
+                  title={t.name || `Untitled ${tagType} Tag`}
+                >
+                  {t.name || `Untitled ${tagType} Tag`}
+                </Text>
+              </Box>
             </HStack>
           )
         )}
@@ -252,13 +267,16 @@ export default function PowerTags({
 
       {/* add row */}
       {editing && (
-        <HStack
+        <Stack
           as="form"
-          spacing={2}
+          direction={{ base: "column", md: "row" }}
+          spacing={{ base: 2, md: 2 }}
           onSubmit={(e) => {
             e.preventDefault();
             void add();
           }}
+          w="full"
+          minW={0}
         >
           <Input
             size="sm"
@@ -266,11 +284,19 @@ export default function PowerTags({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             bg="white"
+            flex="1 1 0"
+            minW={0}
           />
-          <Button size="sm" colorScheme="teal" onClick={() => void add()}>
+          <Button
+            size="sm"
+            colorScheme="teal"
+            onClick={() => void add()}
+            flexShrink={0}
+            alignSelf={{ base: "flex-start", md: "auto" }}
+          >
             Add
           </Button>
-        </HStack>
+        </Stack>
       )}
     </VStack>
   );

@@ -1,4 +1,4 @@
-// src/components/SingleTheme.tsx
+//singleTheme.tsx
 import { CheckIcon, CloseIcon, DeleteIcon } from "@chakra-ui/icons";
 import {
   Box,
@@ -42,7 +42,7 @@ export default function SingleTheme({
   typeDefs,
   onDelete,
 }: {
-  theme: ThemeRow; // from shared types (might_level_id | null)
+  theme: ThemeRow;
   mightDefs: Def[];
   typeDefs: Def[];
   onDelete: (id: string) => void;
@@ -58,7 +58,7 @@ export default function SingleTheme({
   async function save(partial: Partial<ThemeRow>) {
     const prev = local;
     const next = { ...local, ...partial };
-    setLocal(next); // optimistic UI
+    setLocal(next); // optimistic
     setSaving(true);
     const { error } = await supabase
       .from("themes")
@@ -76,10 +76,11 @@ export default function SingleTheme({
       .eq("id", prev.id);
     setSaving(false);
     if (error) {
-      setLocal(prev); // rollback
+      setLocal(prev);
       return toast({ status: "error", title: error.message });
     }
   }
+
   const [editing, setEditing] = useState(false);
   const [tempName, setTempName] = useState(local.name);
   const [editingTypes, setEditingTypes] = useState(false);
@@ -93,7 +94,6 @@ export default function SingleTheme({
 
   const mightName =
     mightDefs.find((d) => d.id === local.might_level_id)?.name ?? "";
-
   const bgColor =
     mightName === "Origin"
       ? "green.50"
@@ -104,15 +104,13 @@ export default function SingleTheme({
       : "white";
 
   useEffect(() => {
-    if (!editingTypes) return; // only normalize when the editor is open
+    if (!editingTypes) return;
     setLocal((prev) => {
       let next = prev;
-      if (!prev.type_id && typeDefs.length > 0) {
+      if (!prev.type_id && typeDefs.length > 0)
         next = { ...next, type_id: typeDefs[0].id };
-      }
-      if (!prev.might_level_id && mightDefs.length > 0) {
+      if (!prev.might_level_id && mightDefs.length > 0)
         next = { ...next, might_level_id: mightDefs[0].id };
-      }
       return next;
     });
   }, [editingTypes, typeDefs, mightDefs]);
@@ -120,30 +118,41 @@ export default function SingleTheme({
   return (
     <Box
       borderWidth="1px"
-      rounded="lg"
-      p={4}
+      rounded="md"
+      p={{ base: 2, md: 4 }}
       m={0}
       shadow="sm"
       w="full"
       bg={bgColor}
       opacity={deleting ? 0.6 : 1}
       pointerEvents={deleting ? "none" : "auto"}
+      maxW="100%"
+      overflowX="hidden"
     >
-      <VStack align="stretch" spacing={2}>
+      <VStack align="stretch" spacing={{ base: 2, md: 3 }}>
         {/* Theme types */}
-        <HStack justify="space-between" align="center" w="full">
+        <HStack
+          justify="space-between"
+          align="center"
+          w="full"
+          minW={0}
+          spacing={{ base: 2, md: 3 }}
+        >
           {editingTypes ? (
             <Stack
               direction={{ base: "column", md: "row" }}
-              spacing={2}
-              flex="1"
+              spacing={{ base: 2, md: 3 }}
+              flex="1 1 0"
+              minW={0}
             >
               <Select
-                value={local.type_id ?? ""} // was local.type_id
+                value={local.type_id ?? ""}
                 onChange={(e) => void save({ type_id: e.target.value || null })}
                 size="sm"
                 bgColor="white"
                 isDisabled={saving}
+                minW={0}
+                flex="1 1 0"
               >
                 <option value="" disabled>
                   Select type
@@ -156,13 +165,15 @@ export default function SingleTheme({
               </Select>
 
               <Select
-                value={local.might_level_id ?? ""} // was local.might_level_id
+                value={local.might_level_id ?? ""}
                 onChange={(e) =>
                   void save({ might_level_id: e.target.value || null })
                 }
                 size="sm"
                 bgColor="white"
                 isDisabled={saving}
+                minW={0}
+                flex="1 1 0"
               >
                 <option value="" disabled>
                   Select might
@@ -175,26 +186,29 @@ export default function SingleTheme({
               </Select>
             </Stack>
           ) : (
-            <HStack flex="1" spacing={3}>
+            <HStack flex="1 1 0" spacing={{ base: 2, md: 3 }} minW={0}>
               {(() => {
-                const mightName = mightDefs.find(
+                const label =
+                  typeDefs.find((d) => d.id === local.type_id)?.name ||
+                  "Unknown Type";
+                const mName = mightDefs.find(
                   (d) => d.id === local.might_level_id
                 )?.name;
                 const MightIcon =
-                  mightName === "Origin"
+                  mName === "Origin"
                     ? GiThreeLeaves
-                    : mightName === "Adventure"
+                    : mName === "Adventure"
                     ? GiCrossedSwords
-                    : mightName === "Greatness"
+                    : mName === "Greatness"
                     ? GiCrown
                     : null;
                 return (
                   <>
-                    {MightIcon && <Icon as={MightIcon} boxSize={5} />}
-                    <Text>
-                      Theme:{" "}
-                      {typeDefs.find((d) => d.id === local.type_id)?.name ||
-                        "Unknown Type"}
+                    {MightIcon && (
+                      <Icon as={MightIcon} boxSize={5} flexShrink={0} />
+                    )}
+                    <Text noOfLines={1} title={label}>
+                      Theme: {label}
                     </Text>
                   </>
                 );
@@ -202,7 +216,7 @@ export default function SingleTheme({
             </HStack>
           )}
 
-          <Tooltip label="Edit theme type & might">
+          <Tooltip label="Edit type & might">
             <IconButton
               aria-label="Edit type/might"
               icon={<IoIosArrowDropdownCircle />}
@@ -210,12 +224,21 @@ export default function SingleTheme({
               variant="ghost"
               onClick={() => setEditingTypes(!editingTypes)}
               isDisabled={saving}
+              flexShrink={0}
             />
           </Tooltip>
         </HStack>
-        <Divider />
+
+        <Divider my={{ base: 1, md: 2 }} />
+
         {/* Name */}
-        <HStack justify="space-between" align="center" bgColor="yellow.50">
+        <HStack
+          justify="space-between"
+          align="center"
+          bgColor="yellow.50"
+          p={{ base: 1, md: 2 }}
+          rounded="sm"
+        >
           <Tooltip label="Toggle scratched">
             <IconButton
               aria-label="Toggle scratched"
@@ -225,10 +248,12 @@ export default function SingleTheme({
               colorScheme={local.is_scratched ? "red" : "gray"}
               isDisabled={saving}
               onClick={() => void save({ is_scratched: !local.is_scratched })}
+              flexShrink={0}
             />
           </Tooltip>
+
           {editing ? (
-            <HStack flex="1">
+            <HStack flex="1 1 0" minW={0} spacing={1}>
               <Input
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
@@ -236,6 +261,9 @@ export default function SingleTheme({
                 bgColor="white"
                 fontWeight="bold"
                 autoFocus
+                size="sm"
+                minW={0}
+                flex="1 1 0"
               />
               <IconButton
                 aria-label="Save name"
@@ -243,9 +271,8 @@ export default function SingleTheme({
                 size="sm"
                 colorScheme="teal"
                 onClick={async () => {
-                  if (tempName.trim() !== local.name) {
+                  if (tempName.trim() !== local.name)
                     await save({ name: tempName.trim() });
-                  }
                   setEditing(false);
                 }}
                 isDisabled={saving}
@@ -264,36 +291,38 @@ export default function SingleTheme({
             </HStack>
           ) : (
             <Text
-              flex="1"
+              flex="1 1 0"
+              minW={0}
               fontWeight="bold"
-              color={local.is_scratched ? "red" : "black"}
+              color={local.is_scratched ? "red.600" : "black"}
               textDecoration={local.is_scratched ? "line-through" : "none"}
+              noOfLines={1}
+              title={local.name || "Untitled Theme"}
             >
               {local.name || "Untitled Theme"}
             </Text>
           )}
 
-          <HStack>
-            {!editing && (
-              <Tooltip label="Edit theme name">
-                <IconButton
-                  aria-label="Edit"
-                  icon={<IoIosArrowDropdownCircle />}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setTempName(local.name);
-                    setEditing(true);
-                  }}
-                  isDisabled={saving}
-                />
-              </Tooltip>
-            )}
-          </HStack>
+          {!editing && (
+            <Tooltip label="Edit theme name">
+              <IconButton
+                aria-label="Edit"
+                icon={<IoIosArrowDropdownCircle />}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setTempName(local.name);
+                  setEditing(true);
+                }}
+                isDisabled={saving}
+                flexShrink={0}
+              />
+            </Tooltip>
+          )}
         </HStack>
 
         {/* Power Tags section */}
-        <HStack justify="space-between" align="center">
+        <HStack justify="space-between" align="center" minW={0}>
           <Text fontWeight="bold">Power Tags</Text>
           <Tooltip label={editingPowerTags ? "Done" : "Edit power tags"}>
             <IconButton
@@ -314,10 +343,10 @@ export default function SingleTheme({
           scratchable
         />
 
-        <Divider mt={2} />
+        <Divider mt={{ base: 1, md: 2 }} />
 
         {/* Weakness Tags section */}
-        <HStack justify="space-between" align="center">
+        <HStack justify="space-between" align="center" minW={0}>
           <Text fontWeight="bold">Weakness Tags</Text>
           <Tooltip label={editingWeaknessTags ? "Done" : "Edit weakness tags"}>
             <IconButton
@@ -338,27 +367,31 @@ export default function SingleTheme({
         />
 
         {/* Quest field */}
-        <Text fontWeight="bold">Quest:</Text>
+        <Text fontWeight="bold" mt={{ base: 1, md: 2 }}>
+          Quest:
+        </Text>
         <HStack
           align="start"
           justify="space-between"
           w="full"
           bgColor="white"
-          p={1}
+          p={{ base: 1, md: 2 }}
+          rounded="sm"
+          minW={0}
         >
           {editingQuest ? (
-            <VStack align="stretch" flex="1">
+            <VStack align="stretch" flex="1 1 0" minW={0} spacing={2}>
               <Input
                 placeholder="Quest…"
                 size="sm"
-                minH="64px"
+                minH="48px"
                 bgColor="white"
                 value={tempQuest}
                 onChange={(e) => setTempQuest(e.target.value)}
                 isDisabled={saving}
                 autoFocus
               />
-              <HStack>
+              <HStack spacing={2}>
                 <Button
                   size="sm"
                   colorScheme="teal"
@@ -383,7 +416,7 @@ export default function SingleTheme({
               </HStack>
             </VStack>
           ) : (
-            <Text flex="1" minH="64px">
+            <Text flex="1 1 0" minW={0} minH="48px" whiteSpace="pre-wrap">
               {local.quest && local.quest.trim().length > 0
                 ? local.quest
                 : "No quest set"}
@@ -401,36 +434,40 @@ export default function SingleTheme({
                 setEditingQuest(!editingQuest);
               }}
               isDisabled={saving}
+              flexShrink={0}
             />
           </Tooltip>
         </HStack>
 
-        <Divider />
+        <Divider my={{ base: 1, md: 2 }} />
 
-        {/* Middle: improve / abandon / milestone controls (3 checkboxes each) */}
-        <VStack align="stretch" spacing={3}>
+        {/* Middle: improve / abandon / milestone controls */}
+        <VStack align="stretch" spacing={{ base: 2, md: 3 }}>
           {[
             { key: "improve" as const, label: "Improve" },
             { key: "abandon" as const, label: "Abandon" },
             { key: "milestone" as const, label: "Milestone" },
           ].map(({ key, label }) => (
-            <HStack key={key} justify="space-between">
-              <Text w="96px">{label}</Text>
-              <HStack>
+            <HStack key={key} justify="space-between" minW={0}>
+              <Text w="96px" fontSize="sm">
+                {label}
+              </Text>
+              <HStack spacing={{ base: 2, md: 3 }}>
                 {[1, 2, 3].map((i) => {
                   const checked = i <= local[key];
                   return (
                     <Checkbox
                       key={i}
+                      bgColor="white"
                       isChecked={checked}
                       onChange={() => {
                         const next = checked ? i - 1 : i;
-                        // construct a partial ThemeRow with an index signature
                         const update: Partial<ThemeRow> = {
                           [key]: next,
                         } as Pick<ThemeRow, typeof key>;
                         void save(update);
                       }}
+                      size="sm"
                     />
                   );
                 })}
@@ -439,24 +476,14 @@ export default function SingleTheme({
           ))}
         </VStack>
 
-        <Divider />
+        <Divider my={{ base: 1, md: 2 }} />
 
         {/* Bottom: actions */}
         <Stack
           direction={{ base: "column", md: "row" }}
-          spacing={2}
-          justify="space-between"
+          spacing={{ base: 2, md: 3 }}
+          justify="flex-end"
         >
-          {/* <Button
-            size="sm"
-            variant={local.is_retired ? "solid" : "outline"}
-            colorScheme="purple"
-            onClick={() => void save({ is_retired: !local.is_retired })}
-            isDisabled={saving}
-          >
-            {local.is_retired ? "Un-Retire" : "Retire"}
-          </Button> */}
-
           <Tooltip label="Delete theme">
             <IconButton
               aria-label="Delete theme"
@@ -465,36 +492,40 @@ export default function SingleTheme({
               size="sm"
               onClick={onOpen}
               isDisabled={saving}
+              alignSelf={{ base: "flex-end", md: "auto" }}
             />
           </Tooltip>
         </Stack>
-        <Modal isOpen={isOpen} onClose={onClose} isCentered>
+
+        <Modal isOpen={isOpen} onClose={onClose} isCentered size="sm">
           <ModalOverlay />
           <ModalContent>
-            <ModalHeader>Delete theme?</ModalHeader>
+            <ModalHeader pb={1}>Delete theme?</ModalHeader>
             <ModalCloseButton />
-            <ModalBody>
-              <Text>Are you sure you want to delete this theme?</Text>
+            <ModalBody pt={0}>
+              <Text fontSize="sm">
+                Are you sure you want to delete this theme?
+              </Text>
             </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onClose}>
+            <ModalFooter gap={2}>
+              <Button variant="ghost" mr={1} onClick={onClose} size="sm">
                 Cancel
               </Button>
               <Button
                 colorScheme="red"
                 isLoading={deleting}
+                size="sm"
                 onClick={async () => {
                   try {
                     setDeleting(true);
-                    await onDelete(local.id); // wait for parent to delete + reload
+                    await onDelete(local.id);
                     toast({ status: "success", title: "Theme deleted" });
                     onClose();
                   } catch (e: unknown) {
-                    if (e instanceof Error) {
-                      toast({ status: "error", title: e.message });
-                    } else {
-                      toast({ status: "error", title: "Delete failed" });
-                    }
+                    toast({
+                      status: "error",
+                      title: e instanceof Error ? e.message : "Delete failed",
+                    });
                   } finally {
                     setDeleting(false);
                   }

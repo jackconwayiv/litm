@@ -1,3 +1,4 @@
+//singleCharacter.tsx
 import {
   Alert,
   AlertIcon,
@@ -26,14 +27,12 @@ import { TAB_ORDER, isThemeTab } from "../types/types";
 import AddThemeInline from "./AddThemeInline";
 import AdventureSection from "./AdventureSection";
 import BackpackView from "./character/BackpackView";
+import BioPage from "./character/BioPage";
 import Statuses from "./character/Statuses";
 import ThemePage from "./character/ThemePage";
 import CharacterHeader from "./CharacterHeader";
 import PromiseStepper from "./PromiseStepper";
 import ThemeTabs from "./ThemeTabs";
-import BioPage from "./character/BioPage";
-
-// const truncateThemeName = (s: string) => (s.length <= 20 ? s : s.slice(0, 20));
 
 export default function SingleCharacter() {
   const { charId } = useParams();
@@ -435,15 +434,15 @@ export default function SingleCharacter() {
 
   if (loading) {
     return (
-      <HStack p={4} gap={2}>
-        <Spinner />
-        <Text>Loading character…</Text>
+      <HStack p={{ base: 2, md: 4 }} gap={2}>
+        <Spinner size="sm" />
+        <Text fontSize="sm">Loading character…</Text>
       </HStack>
     );
   }
   if (err) {
     return (
-      <Alert status="error" m={3}>
+      <Alert status="error" m={{ base: 2, md: 3 }} fontSize="sm">
         <AlertIcon />
         {err}
       </Alert>
@@ -465,29 +464,40 @@ export default function SingleCharacter() {
   };
 
   return (
-    <Box>
+    <Box
+      w="full"
+      maxW="100vw"
+      overflowX="hidden"
+      px={{ base: 2, md: 4 }}
+      py={{ base: 2, md: 3 }}
+      gap={0}
+    >
       <CharacterHeader
         character={data.character}
         onRename={renameCharacter}
         onDelete={deleteCharacter}
       />
 
-      <PromiseStepper
-        value={data.character.promise}
-        onChange={updatePromise}
-        busy={savingPromise}
-      />
+      <Box mt={{ base: 1, md: 2 }}>
+        <PromiseStepper
+          value={data.character.promise}
+          onChange={updatePromise}
+          busy={savingPromise}
+        />
+      </Box>
 
-      <AdventureSection
-        joined={data.joinedAdventure}
-        joinCodeDefault={joinCode}
-        onJoin={joinAdventure}
-        onLeave={leaveAdventure}
-        busyJoin={joining}
-        busyLeave={leaving}
-      />
+      <Box mt={{ base: 2, md: 3 }}>
+        <AdventureSection
+          joined={data.joinedAdventure}
+          joinCodeDefault={joinCode}
+          onJoin={joinAdventure}
+          onLeave={leaveAdventure}
+          busyJoin={joining}
+          busyLeave={leaving}
+        />
+      </Box>
 
-      <Divider />
+      <Divider my={{ base: 2, md: 3 }} />
 
       <ThemeTabs
         themes={themeSlots}
@@ -496,9 +506,9 @@ export default function SingleCharacter() {
         onEmptyThemeClick={(slot) => openAddTheme(slot)}
       />
 
-      <Box p={2}>
+      <Box p={{ base: 1, md: 2 }}>
         {showAddInline && (
-          <Box my={2}>
+          <Box my={{ base: 1, md: 2 }}>
             <AddThemeInline
               typeDefs={data.typeDefs}
               mightDefs={data.mightDefs}
@@ -520,8 +530,10 @@ export default function SingleCharacter() {
               onDelete={handleDeleteTheme}
             />
           ) : (
-            <Box p={2}>
-              <Text color="gray.500">No Theme assigned yet.</Text>
+            <Box p={{ base: 1, md: 2 }}>
+              <Text color="gray.500" fontSize="sm">
+                No Theme assigned yet.
+              </Text>
             </Box>
           ))}
 
@@ -537,8 +549,10 @@ export default function SingleCharacter() {
               onDelete={handleDeleteTheme}
             />
           ) : (
-            <Box p={2}>
-              <Text color="gray.500">No Theme assigned yet.</Text>
+            <Box p={{ base: 1, md: 2 }}>
+              <Text color="gray.500" fontSize="sm">
+                No Theme assigned yet.
+              </Text>
             </Box>
           ))}
 
@@ -554,8 +568,10 @@ export default function SingleCharacter() {
               onDelete={handleDeleteTheme}
             />
           ) : (
-            <Box p={2}>
-              <Text color="gray.500">No Theme assigned yet.</Text>
+            <Box p={{ base: 1, md: 2 }}>
+              <Text color="gray.500" fontSize="sm">
+                No Theme assigned yet.
+              </Text>
             </Box>
           ))}
 
@@ -571,23 +587,25 @@ export default function SingleCharacter() {
               onDelete={handleDeleteTheme}
             />
           ) : (
-            <Box p={2}>
-              <Text color="gray.500">No Theme assigned yet.</Text>
+            <Box p={{ base: 1, md: 2 }}>
+              <Text color="gray.500" fontSize="sm">
+                No Theme assigned yet.
+              </Text>
             </Box>
           ))}
 
         {tab === "backpack" && (
-          <Box p={2}>
+          <Box p={{ base: 1, md: 2 }}>
             <BackpackView characterId={data.character.id} />
           </Box>
         )}
         {tab === "statuses" && (
-          <Box p={2}>
+          <Box p={{ base: 1, md: 2 }}>
             <Statuses characterId={data.character.id} />
           </Box>
         )}
         {tab === "bio" && (
-          <Box p={2}>
+          <Box p={{ base: 1, md: 2 }}>
             <BioPage
               character={data.character}
               onLocalUpdate={(patch) =>

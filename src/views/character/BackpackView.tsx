@@ -11,6 +11,7 @@ import {
   IconButton,
   Input,
   Spinner,
+  Stack,
   Switch,
   Text,
   Tooltip,
@@ -26,12 +27,12 @@ type BackpackTagType = "Story" | "Single-Use";
 
 type TagRow = {
   id: string;
-  character_id: string | null; // direct attachment to character
-  theme_id: string | null; // should be null for Backpack items
+  character_id: string | null;
+  theme_id: string | null;
   name: string;
-  type: BackpackTagType | null; // DB allows null, we filter to two kinds
-  is_scratched: boolean; // NOT NULL DEFAULT false
-  is_negative: boolean; // NOT NULL DEFAULT false
+  type: BackpackTagType | null;
+  is_scratched: boolean;
+  is_negative: boolean;
   scratched_at?: string | null;
   scratched_by_player_id?: string | null;
 };
@@ -52,7 +53,7 @@ export default function BackpackView({
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [singleUse, setSingleUse] = useState(false); // toggle: false => Story, true => Single-Use
+  const [singleUse, setSingleUse] = useState(false);
 
   const canSave = useMemo(
     () => !!characterId && newName.trim().length > 0 && !saving,
@@ -166,43 +167,66 @@ export default function BackpackView({
   );
 
   return (
-    <VStack align="stretch" spacing={6}>
-      <Box>
-        <Heading size="md" mb={3}>
+    <VStack align="stretch" spacing={{ base: 3, md: 4 }} w="full" minW={0}>
+      <Box w="full" minW={0}>
+        <Heading size="md" mb={{ base: 2, md: 3 }}>
           Backpack
         </Heading>
-        <HStack spacing={2}>
+
+        {/* Add row */}
+        <Stack
+          direction={{ base: "column", md: "row" }}
+          spacing={{ base: 2, md: 2 }}
+          w="full"
+          minW={0}
+          align={{ base: "stretch", md: "center" }}
+        >
           <Input
-            placeholder="Add item..."
+            placeholder="Add item…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) addTag();
             }}
+            size="sm"
+            flex="1 1 0"
+            minW={0}
           />
-          <FormControl display="flex" alignItems="center" width="160px">
-            <Switch
-              id="single-use"
-              isChecked={singleUse}
+
+          <HStack spacing={2} flexShrink={0}>
+            <FormControl display="flex" alignItems="center">
+              <Switch
+                id="single-use"
+                isChecked={singleUse}
+                size="sm"
+                onChange={(e) => setSingleUse(e.target.checked)}
+              />
+              <FormLabel
+                htmlFor="single-use"
+                mb="0"
+                ml="2"
+                mr="0"
+                fontSize="xs"
+              >
+                1-Use
+              </FormLabel>
+            </FormControl>
+
+            <Button
+              colorScheme="teal"
+              onClick={addTag}
+              isDisabled={!canSave}
+              isLoading={saving}
               size="sm"
-              ml="2"
-              onChange={(e) => setSingleUse(e.target.checked)}
-            />
-            <FormLabel htmlFor="single-use" mb="0" ml="2" mr="0" fontSize={10}>
-              1-Use
-            </FormLabel>
-          </FormControl>
-          <Button
-            colorScheme="teal"
-            onClick={addTag}
-            isDisabled={!canSave}
-            isLoading={saving}
-          >
-            +
-          </Button>
-        </HStack>
+              flexShrink={0}
+            >
+              +
+            </Button>
+          </HStack>
+        </Stack>
+
         {error ? (
-          <Alert status="error" mt={3}>
+          <Alert status="error" mt={{ base: 2, md: 3 }}>
             <AlertIcon />
             {error}
           </Alert>
@@ -228,9 +252,9 @@ export default function BackpackView({
       )}
 
       {loading ? (
-        <HStack>
-          <Spinner />
-          <Text>Loading Backpack…</Text>
+        <HStack spacing={2}>
+          <Spinner size="sm" />
+          <Text fontSize="sm">Loading Backpack…</Text>
         </HStack>
       ) : null}
     </VStack>
@@ -249,21 +273,25 @@ function TagSection({
   onRemove: (row: TagRow) => void;
 }) {
   return (
-    <VStack align="stretch" spacing={2}>
-      <Text fontWeight="bold" fontSize="lg">
+    <VStack align="stretch" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
+      <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }}>
         {title}
       </Text>
-      <VStack align="stretch" spacing={1}>
+
+      <VStack align="stretch" spacing={1} w="full" minW={0}>
         {rows.map((row) => (
           <HStack
             key={row.id}
             justify="space-between"
-            p={2}
+            p={{ base: 2, md: 2 }}
             borderWidth="1px"
             borderRadius="md"
             bgColor={row.is_negative ? "red.50" : "yellow.50"}
+            w="full"
+            minW={0}
+            spacing={{ base: 2, md: 3 }}
           >
-            <HStack spacing={3}>
+            <HStack spacing={{ base: 2, md: 3 }} minW={0} flex="1 1 0">
               <Tooltip
                 label={row.is_scratched ? "Unscratch" : "Scratch"}
                 openDelay={200}
@@ -275,16 +303,22 @@ function TagSection({
                   color={row.is_scratched ? "red.500" : "gray.800"}
                   icon={<GiTripleScratches />}
                   onClick={() => onScratch(row)}
+                  flexShrink={0}
                 />
               </Tooltip>
               <Text
+                noOfLines={1}
+                title={row.name}
                 textDecor={row.is_scratched ? "line-through" : "none"}
                 opacity={row.is_scratched ? 0.6 : 1}
                 color={row.is_scratched ? "red.500" : "gray.800"}
+                minW={0}
+                flex="1 1 0"
               >
                 {row.name}
               </Text>
             </HStack>
+
             <Tooltip label="Delete" openDelay={200}>
               <IconButton
                 aria-label="delete"
@@ -293,6 +327,7 @@ function TagSection({
                 variant="ghost"
                 icon={<DeleteIcon />}
                 onClick={() => onRemove(row)}
+                flexShrink={0}
               />
             </Tooltip>
           </HStack>

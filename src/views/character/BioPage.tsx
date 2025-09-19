@@ -4,19 +4,19 @@ import {
   Grid,
   GridItem,
   Heading,
-  HStack,
   Input,
+  Stack,
   Text,
   Textarea,
   useToast,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import type { CharacterRow } from "../../types/types";
 
 type Props = {
   character: CharacterRow;
-  onLocalUpdate: (patch: Partial<CharacterRow>) => void; // keep SingleCharacter state in sync
+  onLocalUpdate: (patch: Partial<CharacterRow>) => void;
 };
 
 type BioFieldKey =
@@ -26,11 +26,6 @@ type BioFieldKey =
   | "relationships"
   | "aspirations"
   | "achievements";
-// type BriefKey =
-//   | "brief_trait_physical"
-//   | "brief_trait_personality"
-//   | "brief_race"
-//   | "brief_class";
 
 export default function BioPage({ character, onLocalUpdate }: Props) {
   const toast = useToast({
@@ -55,18 +50,40 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
     toast({ status: "success", title: "Saved" });
   }
 
-  const brief =
-    `${character.brief_trait_physical}, ${character.brief_trait_personality} ${character.brief_race} ${character.brief_class}`.trim();
+  // Clean brief: avoid stray commas/spaces when some fields are empty
+  const brief = useMemo(() => {
+    const parts: string[] = [];
+    const phys = character.brief_trait_physical?.trim();
+    const pers = character.brief_trait_personality?.trim();
+    const race = character.brief_race?.trim();
+    const cls = character.brief_class?.trim();
+
+    const left = [phys, pers].filter(Boolean).join(", ");
+    const right = [race, cls].filter(Boolean).join(" ");
+
+    if (left) parts.push(left);
+    if (right) parts.push(right);
+
+    return parts.join(" ").trim();
+  }, [
+    character.brief_trait_physical,
+    character.brief_trait_personality,
+    character.brief_race,
+    character.brief_class,
+  ]);
 
   return (
-    <Box p={2}>
-      <Heading size="sm" mb={2}>
+    <Box p={{ base: 2, md: 3 }} w="full" maxW="100%" overflowX="hidden">
+      <Heading size="sm" mb={{ base: 2, md: 2 }}>
         Character Brief
       </Heading>
+
+      {/* Brief Inputs */}
       <Grid
         templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }}
-        gap={2}
-        mb={2}
+        gap={{ base: 2, md: 2 }}
+        mb={{ base: 2, md: 2 }}
+        w="full"
       >
         <Input
           size="sm"
@@ -79,6 +96,7 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
             void savePatch({ brief_trait_physical: e.target.value })
           }
           isDisabled={busy}
+          minW={0}
         />
         <Input
           size="sm"
@@ -91,6 +109,7 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
             void savePatch({ brief_trait_personality: e.target.value })
           }
           isDisabled={busy}
+          minW={0}
         />
         <Input
           size="sm"
@@ -99,6 +118,7 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
           onChange={(e) => onLocalUpdate({ brief_race: e.target.value })}
           onBlur={(e) => void savePatch({ brief_race: e.target.value })}
           isDisabled={busy}
+          minW={0}
         />
         <Input
           size="sm"
@@ -107,29 +127,52 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
           onChange={(e) => onLocalUpdate({ brief_class: e.target.value })}
           onBlur={(e) => void savePatch({ brief_class: e.target.value })}
           isDisabled={busy}
+          minW={0}
         />
       </Grid>
 
-      <HStack justify="space-between" mb={2}>
+      {/* Preview row */}
+      <Stack
+        direction={{ base: "column", md: "row" }}
+        justify="space-between"
+        align={{ base: "stretch", md: "center" }}
+        mb={{ base: 2, md: 2 }}
+        spacing={{ base: 1, md: 2 }}
+        w="full"
+      >
         <Text fontSize="sm" color="gray.600">
           Preview
         </Text>
         <Button
           size="xs"
           variant="ghost"
-          onClick={() => navigator.clipboard.writeText(brief)}
+          onClick={() => void navigator.clipboard.writeText(brief || "")}
+          alignSelf={{ base: "flex-start", md: "auto" }}
         >
           Copy
         </Button>
-      </HStack>
-      <Box p={2} borderWidth="1px" rounded="md" mb={3}>
-        <Text fontSize="sm">{brief || "—"}</Text>
+      </Stack>
+
+      <Box
+        p={{ base: 2, md: 2 }}
+        borderWidth="1px"
+        rounded="md"
+        mb={{ base: 3, md: 3 }}
+      >
+        <Text fontSize="sm" whiteSpace="pre-wrap">
+          {brief || "—"}
+        </Text>
       </Box>
 
-      <Heading size="sm" mb={2}>
+      <Heading size="sm" mb={{ base: 2, md: 2 }}>
         Details
       </Heading>
-      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={2}>
+
+      <Grid
+        templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
+        gap={{ base: 2, md: 3 }}
+        w="full"
+      >
         {(
           [
             ["appearance", "Appearance"],
@@ -140,14 +183,14 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
             ["achievements", "Achievements"],
           ] as [BioFieldKey, string][]
         ).map(([key, label]) => (
-          <GridItem key={key}>
+          <GridItem key={key} minW={0}>
             <Text fontSize="xs" color="gray.600" mb={1}>
               {label}
             </Text>
             <Textarea
               size="sm"
               rows={5}
-              value={character[key]}
+              value={character[key] ?? ""}
               onChange={(e) =>
                 onLocalUpdate({
                   [key]: e.target.value,
@@ -160,6 +203,8 @@ export default function BioPage({ character, onLocalUpdate }: Props) {
               }
               isDisabled={busy}
               bg="white"
+              resize="vertical"
+              minW={0}
             />
           </GridItem>
         ))}

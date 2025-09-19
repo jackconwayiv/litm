@@ -17,12 +17,14 @@ import {
   Input,
   List,
   ListItem,
-  Spacer,
   Spinner,
+  Stack,
   Tag,
   TagLabel,
   Text,
   VStack,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -149,7 +151,6 @@ export default function Characters() {
     }
 
     setActiveId(data.active_character_id as string);
-    // re-read to be certain
     await loadActive();
   }
 
@@ -192,61 +193,99 @@ export default function Characters() {
   const go = (id: string, hash: string) => nav(`/c/${id}#${hash}`);
 
   return (
-    <Box p={4}>
-      <HStack mb={4}>
-        <Button leftIcon={<RepeatIcon />} onClick={load} variant="outline">
+    <Box
+      p={{ base: 2, md: 4 }}
+      w="full"
+      maxW="100%"
+      overflowX="hidden"
+      minW={0}
+    >
+      {/* Toolbar */}
+      <HStack mb={{ base: 2, md: 4 }} spacing={{ base: 2, md: 3 }} w="full">
+        <Button
+          leftIcon={<RepeatIcon />}
+          onClick={load}
+          variant="outline"
+          size="sm"
+        >
           Refresh
         </Button>
-        <Tag size="md" colorScheme="gray">
+        <Tag size="sm" colorScheme="gray">
           <TagLabel>{characters.length} characters</TagLabel>
         </Tag>
-        <Spacer />
       </HStack>
 
-      <Box mb={6} p={4} borderWidth="1px" rounded="lg">
-        <Heading as="h3" size="md" mb={3}>
+      {/* Create Character */}
+      <Box
+        mb={{ base: 4, md: 6 }}
+        p={{ base: 2, md: 4 }}
+        borderWidth="1px"
+        rounded="lg"
+      >
+        <Heading as="h3" size="sm" mb={{ base: 2, md: 3 }}>
           Create Character
         </Heading>
-        <HStack
+        <Stack
           as="form"
+          direction={{ base: "column", md: "row" }}
           onSubmit={(e) => {
             e.preventDefault();
-            createCharacter();
+            void createCharacter();
           }}
-          gap={3}
+          spacing={{ base: 2, md: 3 }}
+          w="full"
+          minW={0}
+          align={{ base: "stretch", md: "center" }}
         >
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
+            size="sm"
+            flex="1 1 0"
+            minW={0}
           />
-          <Button type="submit" colorScheme="teal">
+          <Button type="submit" colorScheme="teal" size="sm" flexShrink={0}>
             Add
           </Button>
-        </HStack>
+        </Stack>
       </Box>
 
       {err && (
-        <Alert status="error" mb={4}>
+        <Alert status="error" mb={{ base: 3, md: 4 }}>
           <AlertIcon /> {err}
         </Alert>
       )}
 
       {loading ? (
-        <HStack>
-          <Spinner /> <Text>Loading…</Text>
+        <HStack spacing={2}>
+          <Spinner size="sm" /> <Text fontSize="sm">Loading…</Text>
         </HStack>
       ) : characters.length === 0 ? (
-        <Text>No characters yet.</Text>
+        <Text color="gray.600" fontSize="sm">
+          No characters yet.
+        </Text>
       ) : (
-        <VStack align="stretch" gap={2}>
+        <VStack align="stretch" spacing={{ base: 2, md: 3 }} w="full" minW={0}>
           <Heading as="h2" size="md">
             Characters
           </Heading>
-          <List spacing={2}>
+
+          <List spacing={{ base: 2, md: 2 }}>
             {characters.map((c) => (
-              <ListItem key={c.id} p={2} borderWidth="1px" rounded="md">
-                <HStack align="center" gap={3}>
+              <ListItem
+                key={c.id}
+                p={{ base: 2, md: 2 }}
+                borderWidth="1px"
+                rounded="md"
+              >
+                {/* Row header */}
+                <HStack
+                  align="center"
+                  spacing={{ base: 2, md: 3 }}
+                  w="full"
+                  minW={0}
+                >
                   <IconButton
                     aria-label={open[c.id] ? "Collapse" : "Expand"}
                     icon={
@@ -255,8 +294,15 @@ export default function Characters() {
                     size="sm"
                     variant="ghost"
                     onClick={() => toggle(c.id)}
+                    flexShrink={0}
                   />
-                  <Text fontWeight="bold" flex="1">
+                  <Text
+                    fontWeight="bold"
+                    flex="1 1 0"
+                    minW={0}
+                    noOfLines={1}
+                    title={c.name}
+                  >
                     {c.name.toUpperCase()}{" "}
                     {c.id === activeId && (
                       <Tag size="sm" colorScheme="purple" ml={2}>
@@ -264,65 +310,88 @@ export default function Characters() {
                       </Tag>
                     )}
                   </Text>
-                  <Button
-                    size="sm"
-                    colorScheme="teal"
-                    onClick={() => go(c.id, "bio")}
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={c.id === activeId ? "solid" : "outline"}
-                    colorScheme="purple"
-                    onClick={() => setActiveCharacter(c.id)}
-                    isDisabled={c.id === activeId}
-                  >
-                    Set Active
-                  </Button>
+
+                  <HStack spacing={{ base: 1, md: 2 }} flexShrink={0}>
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={() => go(c.id, "bio")}
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={c.id === activeId ? "solid" : "outline"}
+                      colorScheme="purple"
+                      onClick={() => void setActiveCharacter(c.id)}
+                      isDisabled={c.id === activeId}
+                    >
+                      Set Active
+                    </Button>
+                  </HStack>
                 </HStack>
 
+                {/* Expanded content */}
                 <Collapse in={!!open[c.id]} animateOpacity>
-                  <VStack align="start" mt={2} spacing={2}>
-                    <HStack wrap="wrap" spacing={2}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => go(c.id, "relationships")}
-                      >
-                        Relationships
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => go(c.id, "promise")}
-                      >
-                        Quintessences
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => go(c.id, "backpack")}
-                      >
-                        Backpack
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => go(c.id, "fellowship")}
-                      >
-                        Fellowship
-                      </Button>
-                      <IconButton
-                        aria-label="Delete character"
-                        icon={<DeleteIcon />}
-                        size="sm"
-                        colorScheme="red"
-                        onClick={() => deleteCharacter(c.id)}
-                      />
-                    </HStack>
+                  <VStack
+                    align="start"
+                    mt={{ base: 2, md: 2 }}
+                    spacing={{ base: 2, md: 3 }}
+                    w="full"
+                  >
+                    {/* Quick links row: wrap on mobile */}
+                    <Wrap spacing={{ base: 2, md: 2 }}>
+                      <WrapItem>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => go(c.id, "relationships")}
+                        >
+                          Relationships
+                        </Button>
+                      </WrapItem>
+                      <WrapItem>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => go(c.id, "promise")}
+                        >
+                          Quintessences
+                        </Button>
+                      </WrapItem>
+                      <WrapItem>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => go(c.id, "backpack")}
+                        >
+                          Backpack
+                        </Button>
+                      </WrapItem>
+                      <WrapItem>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => go(c.id, "fellowship")}
+                        >
+                          Fellowship
+                        </Button>
+                      </WrapItem>
+                      <WrapItem>
+                        <IconButton
+                          aria-label="Delete character"
+                          icon={<DeleteIcon />}
+                          size="sm"
+                          colorScheme="red"
+                          onClick={() => void deleteCharacter(c.id)}
+                        />
+                      </WrapItem>
+                    </Wrap>
 
-                    <Themes characterId={c.id} />
+                    {/* Themes list for this character */}
+                    <Box w="full" minW={0}>
+                      <Themes characterId={c.id} />
+                    </Box>
                   </VStack>
                 </Collapse>
               </ListItem>

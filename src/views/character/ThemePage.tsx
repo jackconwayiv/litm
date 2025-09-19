@@ -19,18 +19,28 @@ export default function ThemePage({
 }) {
   if (!theme) {
     return (
-      <Box p={4}>
-        <Text color="gray.500">No Theme assigned yet.</Text>
+      <Box
+        p={{ base: 2, md: 4 }}
+        w="full"
+        maxW="100%"
+        overflowX="hidden"
+        rounded="md"
+      >
+        <Text fontSize="sm" color="gray.500">
+          No Theme assigned yet.
+        </Text>
       </Box>
     );
   }
 
   return (
-    <SingleTheme
-      theme={theme}
-      mightDefs={mightDefs}
-      typeDefs={typeDefs}
-      onDelete={onDelete}
-    />
+    <Box w="full" maxW="100%" overflowX="hidden" minW={0}>
+      <SingleTheme
+        theme={theme}
+        mightDefs={mightDefs}
+        typeDefs={typeDefs}
+        onDelete={onDelete}
+      />
+    </Box>
   );
 }

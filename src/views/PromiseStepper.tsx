@@ -7,6 +7,7 @@ type Props = {
   max?: number;
   busy?: boolean;
 };
+
 export default function PromiseStepper({
   value,
   onChange,
@@ -15,23 +16,44 @@ export default function PromiseStepper({
   busy = false,
 }: Props) {
   return (
-    <HStack justify="center" py={1} gap={2}>
-      <Text fontSize="xs">Promise</Text>
-      <HStack gap={1}>
+    <HStack
+      justify="center"
+      align="center"
+      spacing={{ base: 1, md: 2 }}
+      py={{ base: 0.5, md: 1 }}
+      w="full"
+      minW={0}
+    >
+      <Text fontSize={{ base: "xs", md: "sm" }} whiteSpace="nowrap">
+        Promise
+      </Text>
+
+      <HStack spacing={{ base: 1, md: 2 }}>
         <Button
           size="xs"
+          variant="outline"
           onClick={() => onChange(Math.max(min, value - 1))}
           isDisabled={busy || value <= min}
+          flexShrink={0}
         >
           –
         </Button>
-        <Text fontSize="sm" fontWeight="bold">
+
+        <Text
+          fontSize={{ base: "sm", md: "md" }}
+          fontWeight="bold"
+          minW="20px"
+          textAlign="center"
+        >
           {value}
         </Text>
+
         <Button
           size="xs"
+          variant="outline"
           onClick={() => onChange(Math.min(max, value + 1))}
           isDisabled={busy || value >= max}
+          flexShrink={0}
         >
           +
         </Button>
