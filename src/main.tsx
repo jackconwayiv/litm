@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App";
 import Dashboard from "./Dashboard";
+import "./index.css";
 import Adventures from "./views/Adventures";
 import Home from "./views/Home";
 import Profile from "./views/Profile";

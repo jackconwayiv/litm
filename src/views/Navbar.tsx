@@ -1,4 +1,4 @@
-// src/views/Navbar.tsx
+// src/views/Navbar.tsx (minimal header padding + no double wrapper)
 import { HamburgerIcon } from "@chakra-ui/icons";
 import {
   Box,
@@ -25,45 +25,34 @@ export default function NavBar() {
   const navigate = useNavigate();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const inactiveColor = useColorModeValue("gray.700", "gray.300");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
-  const bgColor = useColorModeValue("gray.50", "gray.800");
+  const inactive = useColorModeValue("gray.700", "gray.300");
+  const border = useColorModeValue("gray.200", "gray.700");
+  const bg = useColorModeValue("gray.50", "gray.800");
 
-  async function logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) alert(error.message);
-    else navigate("/", { replace: true });
-  }
-
-  const toolbarLinkProps = {
-    px: 3,
-    py: 2,
+  const linkProps = {
+    px: 2,
+    py: 1,
     borderRadius: "6px",
-    color: inactiveColor,
+    color: inactive,
     _activeLink: { color: "white", bg: "blue.600", fontWeight: "bold" },
     onClick: onClose,
   } as const;
 
-  const drawerLinkProps = {
-    px: 3,
-    py: 2,
-    borderRadius: "6px",
-    color: inactiveColor,
-    onClick: onClose,
-  } as const;
+  async function logout() {
+    const { error } = await supabase.auth.signOut();
+    if (!error) navigate("/", { replace: true });
+  }
 
   return (
     <Box
       as="nav"
       w="full"
-      maxW="100vw"
+      borderBottom="1px solid"
+      borderColor={border}
+      bg={bg}
       position="sticky"
       top={0}
       zIndex={100}
-      borderBottom="1px solid"
-      borderColor={borderColor}
-      bg={bgColor}
-      overflowX="hidden"
     >
       <Flex
         align="center"
@@ -72,59 +61,47 @@ export default function NavBar() {
         py={{ base: 1, md: 2 }}
         w="full"
         minW={0}
-        gap={2}
       >
-        {/* Left: brand/home & desktop links */}
         <HStack spacing={2} minW={0} flex="1 1 0">
           <IconButton
             aria-label="Home"
-            icon={<MdHome size={20} />}
+            icon={<MdHome size={18} />}
             display={{ base: "inline-flex", md: "none" }}
             variant="ghost"
             onClick={() => navigate("/")}
             flexShrink={0}
           />
-
-          {/* Desktop links; horizontally scrollable if crowded */}
           <HStack
             spacing={2}
             display={{ base: "none", md: "flex" }}
             overflowX="auto"
-            overflowY="hidden"
-            whiteSpace="nowrap"
+            minW={0}
             sx={{
               WebkitOverflowScrolling: "touch",
               "::-webkit-scrollbar": { display: "none" },
-              msOverflowStyle: "none",
-              scrollbarWidth: "none",
             }}
-            minW={0}
           >
-            <Link as={NavLink} to="/" {...toolbarLinkProps}>
+            <Link as={NavLink} to="/" {...linkProps}>
               Home
             </Link>
-            <Link as={NavLink} to="/adventures" {...toolbarLinkProps}>
+            <Link as={NavLink} to="/adventures" {...linkProps}>
               Adventures
             </Link>
-            <Link as={NavLink} to="/characters" {...toolbarLinkProps}>
+            <Link as={NavLink} to="/characters" {...linkProps}>
               Characters
             </Link>
-            <Link as={NavLink} to="/profile" {...toolbarLinkProps}>
+            <Link as={NavLink} to="/profile" {...linkProps}>
               Profile
             </Link>
           </HStack>
         </HStack>
 
-        {/* Right: desktop sign out, mobile hamburger */}
         <HStack spacing={1} flexShrink={0}>
           <Button
             colorScheme="red"
             size="sm"
             display={{ base: "none", md: "inline-flex" }}
-            onClick={() => {
-              onClose();
-              void logout();
-            }}
+            onClick={logout}
           >
             Sign Out
           </Button>
@@ -138,34 +115,26 @@ export default function NavBar() {
         </HStack>
       </Flex>
 
-      {/* Mobile drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="xs">
         <DrawerOverlay />
         <DrawerContent>
           <DrawerCloseButton />
           <DrawerHeader>Menu</DrawerHeader>
           <DrawerBody>
-            <Stack spacing={2}>
-              <Link as={NavLink} to="/" {...drawerLinkProps}>
+            <Stack spacing={1}>
+              <Link as={NavLink} to="/" {...linkProps}>
                 Home
               </Link>
-              <Link as={NavLink} to="/adventures" {...drawerLinkProps}>
+              <Link as={NavLink} to="/adventures" {...linkProps}>
                 Adventures
               </Link>
-              <Link as={NavLink} to="/characters" {...drawerLinkProps}>
+              <Link as={NavLink} to="/characters" {...linkProps}>
                 Characters
               </Link>
-              <Link as={NavLink} to="/profile" {...drawerLinkProps}>
+              <Link as={NavLink} to="/profile" {...linkProps}>
                 Profile
               </Link>
-              <Button
-                colorScheme="red"
-                mt={8}
-                onClick={() => {
-                  onClose();
-                  void logout();
-                }}
-              >
+              <Button colorScheme="red" mt={3} onClick={logout}>
                 Sign Out
               </Button>
             </Stack>

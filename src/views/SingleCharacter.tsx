@@ -1,4 +1,4 @@
-//singleCharacter.tsx
+// src/components/SingleCharacter.tsx
 import {
   Alert,
   AlertIcon,
@@ -458,7 +458,11 @@ export default function SingleCharacter() {
   );
 
   const onTabChange = (k: TabKey, idx: number) => {
-    if (isThemeTab(k) && !themeSlots[idx]) openAddTheme(idx + 1);
+    if (isThemeTab(k) && !themeSlots[idx]) {
+      openAddTheme(idx + 1); // show form for empty slot
+    } else {
+      setShowAddInline(false); // hide if the slot already has a theme
+    }
     setTab(k);
     window.location.hash = k;
   };
@@ -507,16 +511,23 @@ export default function SingleCharacter() {
       />
 
       <Box p={{ base: 1, md: 2 }}>
-        {showAddInline && (
-          <Box my={{ base: 1, md: 2 }}>
-            <AddThemeInline
-              typeDefs={data.typeDefs}
-              mightDefs={data.mightDefs}
-              onCreate={handleCreateTheme}
-              onCancel={() => setShowAddInline(false)}
-            />
-          </Box>
-        )}
+        {/* Add Theme Inline — only when active tab is a theme tab with no theme */}
+        {(() => {
+          const activeIdx = TAB_ORDER.indexOf(tab);
+          const shouldShowAdd =
+            showAddInline && isThemeTab(tab) && !themeSlots[activeIdx];
+
+          return shouldShowAdd ? (
+            <Box my={2}>
+              <AddThemeInline
+                typeDefs={data.typeDefs}
+                mightDefs={data.mightDefs}
+                onCreate={handleCreateTheme}
+                onCancel={() => setShowAddInline(false)}
+              />
+            </Box>
+          ) : null;
+        })()}
 
         {tab === "theme1" &&
           (themeSlots[0] ? (
