@@ -470,7 +470,7 @@ export default function SingleCharacter() {
   return (
     <Box
       w="full"
-      maxW="100vw"
+      maxW="100%"
       overflowX="hidden"
       px={{ base: 2, md: 4 }}
       py={{ base: 2, md: 3 }}
