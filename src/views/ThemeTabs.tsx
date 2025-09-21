@@ -1,4 +1,3 @@
-// src/components/ThemeTabs.tsx
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import {
   Box,
@@ -11,9 +10,14 @@ import {
   Tooltip,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { PiBackpackFill, PiSpiralBold, PiUserFill } from "react-icons/pi";
+import {
+  PiBackpackFill,
+  PiSpiralBold,
+  PiUserFill,
+  PiUsersFill,
+} from "react-icons/pi";
 import type { TabKey, ThemeRow } from "../types/types";
-import { TAB_ORDER, isThemeTab } from "../types/types";
+import { buildTabOrder, isThemeTab } from "../types/types";
 
 const truncate = (s: string) => (s.length <= 10 ? s : s.slice(0, 10) + "…");
 
@@ -22,6 +26,7 @@ type Props = {
   active: TabKey;
   onChange: (next: TabKey, index: number) => void;
   onEmptyThemeClick: (slotIndex1Based: number) => void;
+  showFellowship?: boolean; // NEW
 };
 
 export default function ThemeTabs({
@@ -29,17 +34,21 @@ export default function ThemeTabs({
   active,
   onChange,
   onEmptyThemeClick,
+  showFellowship = false,
 }: Props) {
-  const index = TAB_ORDER.indexOf(active);
+  // Build local order (inserts "fellowship" between theme4 and backpack)
+  const ORDER = buildTabOrder(showFellowship);
+  const index = Math.max(0, ORDER.indexOf(active)); // guard if hash is stale
   const isDesktop = useBreakpointValue({ base: false, md: true });
 
-  // helpers
+  // Map an ORDER index to (theme|null, slotIndex1Based)
   const getThemeForIndex = (i: number) => {
+    const wrapped = (i + ORDER.length) % ORDER.length;
     let t = 0;
-    for (let k = 0; k < TAB_ORDER.length; k += 1) {
-      const key = TAB_ORDER[k];
-      if (isThemeTab(key)) {
-        if (k === i)
+    for (let k = 0; k < ORDER.length; k += 1) {
+      const kk = ORDER[k];
+      if (isThemeTab(kk)) {
+        if (k === wrapped)
           return { theme: themes[t] ?? null, slotIndex1Based: t + 1 };
         t += 1;
       }
@@ -48,8 +57,8 @@ export default function ThemeTabs({
   };
 
   const goIndex = (nextIdx: number) => {
-    const wrapped = (nextIdx + TAB_ORDER.length) % TAB_ORDER.length;
-    const key = TAB_ORDER[wrapped];
+    const wrapped = (nextIdx + ORDER.length) % ORDER.length;
+    const key = ORDER[wrapped];
     const { theme, slotIndex1Based } = getThemeForIndex(wrapped);
     if (isThemeTab(key) && !theme && slotIndex1Based)
       onEmptyThemeClick(slotIndex1Based);
@@ -58,35 +67,46 @@ export default function ThemeTabs({
   const goPrev = () => goIndex(index - 1);
   const goNext = () => goIndex(index + 1);
 
-  // indicator for mobile neighbors
+  // Mobile neighbor indicator
   const renderIndicator = (i: number) => {
-    const wrapped = (i + TAB_ORDER.length) % TAB_ORDER.length;
-    const key = TAB_ORDER[wrapped];
-    const { slotIndex1Based } = getThemeForIndex(wrapped);
-
+    const wrapped = (i + ORDER.length) % ORDER.length;
+    const key = ORDER[wrapped];
     const muted = { opacity: 0.7 };
 
     if (key === "bio") return <PiUserFill style={muted} />;
     if (key === "backpack") return <PiBackpackFill style={muted} />;
     if (key === "statuses") return <PiSpiralBold style={muted} />;
-    return (
-      <Box
-        as="span"
-        minW="1.25rem"
-        px="1"
-        textAlign="center"
-        fontSize="xs"
-        borderWidth="1px"
-        borderRadius="full"
-        sx={muted}
-      >
-        {slotIndex1Based}
-      </Box>
-    );
+    if (key === "fellowship") return <PiUsersFill style={muted} />;
+
+    // theme slot badge
+    let t = 0;
+    for (let k = 0; k < ORDER.length; k += 1) {
+      const kk = ORDER[k];
+      if (isThemeTab(kk)) {
+        if (k === wrapped) {
+          return (
+            <Box
+              as="span"
+              minW="1.25rem"
+              px="1"
+              textAlign="center"
+              fontSize="xs"
+              borderWidth="1px"
+              borderRadius="full"
+              sx={muted}
+            >
+              {t + 1}
+            </Box>
+          );
+        }
+        t += 1;
+      }
+    }
+    return null;
   };
 
-  // compute label
-  const currentKey = TAB_ORDER[index];
+  // Current label
+  const currentKey = ORDER[index];
   const { theme: currentTheme } = getThemeForIndex(index);
   const labelStr =
     currentKey === "bio"
@@ -95,6 +115,8 @@ export default function ThemeTabs({
       ? "Backpack"
       : currentKey === "statuses"
       ? "Statuses"
+      : currentKey === "fellowship"
+      ? "Fellowship"
       : currentTheme
       ? truncate(currentTheme.name)
       : "No Theme";
@@ -106,6 +128,8 @@ export default function ThemeTabs({
       ? "Backpack"
       : currentKey === "statuses"
       ? "Statuses"
+      : currentKey === "fellowship"
+      ? "Fellowship"
       : currentTheme?.name ?? "No Theme";
 
   const leftIcon =
@@ -115,6 +139,8 @@ export default function ThemeTabs({
       <PiBackpackFill />
     ) : currentKey === "statuses" ? (
       <PiSpiralBold />
+    ) : currentKey === "fellowship" ? (
+      <PiUsersFill />
     ) : null;
 
   const prevIdx = index - 1;
@@ -134,10 +160,9 @@ export default function ThemeTabs({
       overflowX="hidden"
     >
       {isDesktop ? (
-        // ---------- DESKTOP: full Tabs ----------
         <Tabs
           index={index}
-          onChange={(i) => onChange(TAB_ORDER[i], i)}
+          onChange={(i) => onChange(ORDER[i], i)}
           variant="soft-rounded"
           isFitted
           w="full"
@@ -157,7 +182,7 @@ export default function ThemeTabs({
           >
             {(() => {
               let t = 0;
-              return TAB_ORDER.map((k) => {
+              return ORDER.map((k) => {
                 let theme: ThemeRow | null = null;
                 let slotIndex1Based: number | null = null;
                 if (isThemeTab(k)) {
@@ -199,6 +224,11 @@ export default function ThemeTabs({
                         <PiSpiralBold />
                         <Text as="span">Statuses</Text>
                       </HStack>
+                    ) : k === "fellowship" ? (
+                      <HStack gap={1}>
+                        <PiUsersFill />
+                        <Text as="span">Fellowship</Text>
+                      </HStack>
                     ) : theme ? (
                       <Text noOfLines={1} title={theme.name}>
                         {truncate(theme.name)}
@@ -213,7 +243,7 @@ export default function ThemeTabs({
           </TabList>
         </Tabs>
       ) : (
-        // ---------- MOBILE: arrow stepper ----------
+        // ---------- MOBILE ----------
         <HStack w="full" justify="space-between" align="center">
           <Tooltip label="Previous" openDelay={200}>
             <IconButton

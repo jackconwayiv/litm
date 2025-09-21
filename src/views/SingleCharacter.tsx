@@ -1,3 +1,4 @@
+// src/views/SingleCharacter.tsx
 import {
   Alert,
   AlertIcon,
@@ -22,7 +23,7 @@ import type {
   TagRow,
   ThemeRow,
 } from "../types/types";
-import { TAB_ORDER, isThemeTab } from "../types/types";
+import { TAB_ORDER, buildTabOrder, isThemeTab } from "../types/types";
 import AddThemeInline from "./AddThemeInline";
 import AdventureSection from "./AdventureSection";
 import BackpackView from "./character/BackpackView";
@@ -31,6 +32,7 @@ import Statuses from "./character/Statuses";
 import ThemePage from "./character/ThemePage";
 import CharacterHeader from "./CharacterHeader";
 import PromiseStepper from "./PromiseStepper";
+import SingleTheme from "./SingleTheme";
 import ThemeTabs from "./ThemeTabs";
 
 export default function SingleCharacter() {
@@ -39,6 +41,7 @@ export default function SingleCharacter() {
   const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [err, setErr] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
 
   // adventure UI
   const [joinCode, setJoinCode] = useState<string>("");
@@ -49,6 +52,8 @@ export default function SingleCharacter() {
   const [showAddInline, setShowAddInline] = useState<boolean>(false);
 
   const [savingPromise, setSavingPromise] = useState<boolean>(false);
+  const [fellowshipTheme, setFellowshipTheme] = useState<ThemeRow | null>(null);
+
   const navigate = useNavigate();
   const toast = useToast({
     duration: 2000,
@@ -56,17 +61,19 @@ export default function SingleCharacter() {
     isClosable: true,
   });
 
-  // hash sync
+  // Hash sync — respects dynamic order once data (and joined state) is known
   useEffect(() => {
+    const order = buildTabOrder(!!data?.joinedAdventure);
     const fromHash = window.location.hash.replace(/^#/, "") as TabKey;
-    if (TAB_ORDER.includes(fromHash)) setTab(fromHash);
+    if (order.includes(fromHash)) setTab(fromHash);
     const onHash = () => {
       const h = window.location.hash.replace(/^#/, "") as TabKey;
-      if (TAB_ORDER.includes(h)) setTab(h);
+      const nextOrder = buildTabOrder(!!data?.joinedAdventure);
+      if (nextOrder.includes(h)) setTab(h);
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [data?.joinedAdventure]);
 
   const hydrateJoinedAdventure = useCallback(
     async (fid: string): Promise<JoinedAdventure | null> => {
@@ -114,6 +121,9 @@ export default function SingleCharacter() {
     setLoading(true);
     setErr(null);
 
+    const { data: uRes } = await supabase.auth.getUser();
+    setUid(uRes?.user?.id ?? null);
+
     const { data: cRow, error: cErr } = await supabase
       .from("characters")
       .select(
@@ -131,17 +141,29 @@ export default function SingleCharacter() {
     }
 
     let joinedAdventure: JoinedAdventure | null = null;
+    let fellowshipThemeLocal: ThemeRow | null = null;
+
     if (cRow.fellowship_id) {
       joinedAdventure = await hydrateJoinedAdventure(cRow.fellowship_id);
+
+      // Fetch fellowship theme if enrolled
+      const { data: ft, error: ftErr } = await supabase
+        .from("themes")
+        .select(
+          "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id,created_at,fellowship_id,character_id"
+        )
+        .eq("fellowship_id", cRow.fellowship_id)
+        .maybeSingle<ThemeRow>();
+      if (!ftErr && ft) fellowshipThemeLocal = ft;
     }
 
     const { data: tRows, error: tErr } = await supabase
       .from("themes")
       .select(
-        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id,created_at"
+        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id,created_at,character_id,fellowship_id"
       )
       .eq("character_id", charId)
-      .order("created_at", { ascending: true }); // ← creation order
+      .order("created_at", { ascending: true });
     if (tErr) {
       setErr(tErr.message);
       setLoading(false);
@@ -229,14 +251,16 @@ export default function SingleCharacter() {
       typeDefs: (typeDefsRows ?? []) as Def[],
       joinedAdventure,
     });
+
+    setFellowshipTheme(fellowshipThemeLocal);
     setLoading(false);
   }, [charId, hydrateJoinedAdventure]);
 
   useEffect(() => {
-    loadAll();
+    void loadAll();
   }, [loadAll]);
 
-  // 👇 Auto-open AddThemeInline for empty active theme slot (e.g., brand-new character)
+  // Auto-open AddThemeInline for empty active theme slot (e.g., brand-new character)
   useEffect(() => {
     if (!data) return;
     // Sort like render does, then inspect the active tab slot
@@ -249,7 +273,6 @@ export default function SingleCharacter() {
       setPendingSlot(activeIdx + 1);
       setShowAddInline(true);
     } else {
-      // If user navigates to a filled slot or a non-theme tab, hide the inline form
       setShowAddInline(false);
     }
   }, [data, tab]);
@@ -389,6 +412,18 @@ export default function SingleCharacter() {
     if (fid) {
       const ja = await hydrateJoinedAdventure(fid);
       setData((prev) => (prev ? { ...prev, joinedAdventure: ja } : prev));
+
+      // fetch fellowship theme after join
+      const { data: ft } = await supabase
+        .from("themes")
+        .select(
+          "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id,created_at,fellowship_id,character_id"
+        )
+        .eq("fellowship_id", fid)
+        .maybeSingle<ThemeRow>();
+      setFellowshipTheme(ft ?? null);
+    } else {
+      setFellowshipTheme(null);
     }
     setJoinCode(code);
     toast({ status: "success", title: "Joined adventure" });
@@ -446,15 +481,26 @@ export default function SingleCharacter() {
     (i) => (data.themes ?? [])[i] ?? null
   );
 
-  const onTabChange = (k: TabKey, idx: number) => {
-    if (isThemeTab(k) && !themeSlots[idx]) {
-      openAddTheme(idx + 1);
+  const showFellowshipTab = !!data.joinedAdventure; // only if enrolled
+
+  const onTabChange = (k: TabKey) => {
+    if (isThemeTab(k)) {
+      const slotIdx =
+        ["theme1", "theme2", "theme3", "theme4"].indexOf(k as TabKey) + 1; // 1-based
+      if (slotIdx > 0 && !themeSlots[slotIdx - 1]) {
+        openAddTheme(slotIdx);
+      } else {
+        setShowAddInline(false);
+      }
     } else {
       setShowAddInline(false);
     }
     setTab(k);
     window.location.hash = k;
   };
+
+  const canEditFellowship =
+    !!uid && data.character.player_id === uid && !!data.joinedAdventure;
 
   return (
     <Box
@@ -494,12 +540,13 @@ export default function SingleCharacter() {
         active={tab}
         onChange={onTabChange}
         onEmptyThemeClick={(slot) => openAddTheme(slot)}
+        showFellowship={showFellowshipTab}
       />
 
       <Box p={{ base: 1, md: 2 }}>
         {/* Add Theme Inline — auto-shown when the active theme slot is empty */}
         {(() => {
-          const activeIdx = TAB_ORDER.indexOf(tab);
+          const activeIdx = TAB_ORDER.indexOf(tab); // fellowship isn't a theme tab, so TAB_ORDER works
           const shouldShowAdd =
             showAddInline && isThemeTab(tab) && !themeSlots[activeIdx];
 
@@ -590,6 +637,27 @@ export default function SingleCharacter() {
               </Text>
             </Box>
           ))}
+
+        {/* Fellowship tab — only if enrolled */}
+        {tab === "fellowship" && !!data.joinedAdventure && (
+          <Box p={{ base: 1, md: 2 }}>
+            {fellowshipTheme ? (
+              <SingleTheme
+                theme={fellowshipTheme}
+                mightDefs={data.mightDefs}
+                typeDefs={data.typeDefs}
+                onDelete={() => {
+                  /* delete hidden by SingleTheme for fellowship; noop */
+                }}
+                canEdit={canEditFellowship}
+              />
+            ) : (
+              <Text color="gray.600" fontSize="sm">
+                No fellowship theme yet.
+              </Text>
+            )}
+          </Box>
+        )}
 
         {tab === "backpack" && (
           <Box p={{ base: 1, md: 2 }}>

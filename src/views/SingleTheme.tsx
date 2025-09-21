@@ -1,4 +1,4 @@
-//singleTheme.tsx
+// singleTheme.tsx
 import { CheckIcon, CloseIcon, DeleteIcon } from "@chakra-ui/icons";
 import {
   Box,
@@ -36,16 +36,23 @@ import { supabase } from "../lib/supabase";
 import type { Def, ThemeRow } from "../types/types";
 import PowerTags from "./PowerTags";
 
+type ThemeScope = {
+  fellowship_id?: string | null;
+  character_id?: string | null;
+};
+
 export default function SingleTheme({
   theme,
   mightDefs,
   typeDefs,
   onDelete,
+  canEdit = true,
 }: {
   theme: ThemeRow;
   mightDefs: Def[];
   typeDefs: Def[];
   onDelete: (id: string) => void;
+  canEdit?: boolean;
 }) {
   const toast = useToast({
     position: "top-right",
@@ -54,6 +61,14 @@ export default function SingleTheme({
   });
   const [local, setLocal] = useState(theme);
   const [saving, setSaving] = useState(false);
+
+  const scope = local as unknown as ThemeScope;
+  const isFellowshipTheme = !!scope.fellowship_id;
+  const isCharacterTheme = !!scope.character_id;
+  const fellowshipTypeId =
+    typeDefs.find((d) => d.name === "Fellowship")?.id ?? null;
+
+  const readOnly = !canEdit;
 
   async function save(partial: Partial<ThemeRow>) {
     const prev = local;
@@ -103,17 +118,33 @@ export default function SingleTheme({
       ? "purple.50"
       : "white";
 
+  // When entering "edit type & might", ensure defaults and enforce character-theme can't default to Fellowship
   useEffect(() => {
     if (!editingTypes) return;
     setLocal((prev) => {
       let next = prev;
-      if (!prev.type_id && typeDefs.length > 0)
-        next = { ...next, type_id: typeDefs[0].id };
-      if (!prev.might_level_id && mightDefs.length > 0)
+
+      if (!prev.type_id && typeDefs.length > 0) {
+        const firstAllowed = isCharacterTheme
+          ? typeDefs.find((d) => d.name !== "Fellowship") ?? typeDefs[0]
+          : typeDefs[0];
+        if (firstAllowed) next = { ...next, type_id: firstAllowed.id };
+      }
+
+      if (!prev.might_level_id && mightDefs.length > 0) {
         next = { ...next, might_level_id: mightDefs[0].id };
+      }
+
       return next;
     });
-  }, [editingTypes, typeDefs, mightDefs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTypes, typeDefs, mightDefs, isCharacterTheme]);
+
+  // Filter type options: hide "Fellowship" for character themes (unless it's already selected to avoid blank UI)
+  const typeOptions = typeDefs.filter(
+    (d) =>
+      !isCharacterTheme || d.id === local.type_id || d.name !== "Fellowship"
+  );
 
   return (
     <Box
@@ -145,25 +176,43 @@ export default function SingleTheme({
               flex="1 1 0"
               minW={0}
             >
+              {/* TYPE: locked if fellowship; "Fellowship" hidden for character themes */}
               <Select
                 value={local.type_id ?? ""}
-                onChange={(e) => void save({ type_id: e.target.value || null })}
+                onChange={(e) => {
+                  const nextId = e.target.value || null;
+                  if (
+                    isCharacterTheme &&
+                    nextId &&
+                    fellowshipTypeId &&
+                    nextId === fellowshipTypeId &&
+                    nextId !== local.type_id
+                  ) {
+                    toast({
+                      status: "warning",
+                      title: "Character themes cannot use the Fellowship type.",
+                    });
+                    return;
+                  }
+                  void save({ type_id: nextId });
+                }}
                 size="sm"
                 bgColor="white"
-                isDisabled={saving}
+                isDisabled={saving || readOnly || isFellowshipTheme}
                 minW={0}
                 flex="1 1 0"
               >
                 <option value="" disabled>
                   Select type
                 </option>
-                {typeDefs.map((d) => (
+                {typeOptions.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
                 ))}
               </Select>
 
+              {/* MIGHT: always editable if user can edit */}
               <Select
                 value={local.might_level_id ?? ""}
                 onChange={(e) =>
@@ -171,7 +220,7 @@ export default function SingleTheme({
                 }
                 size="sm"
                 bgColor="white"
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
                 minW={0}
                 flex="1 1 0"
               >
@@ -223,7 +272,7 @@ export default function SingleTheme({
               size="sm"
               variant="ghost"
               onClick={() => setEditingTypes(!editingTypes)}
-              isDisabled={saving}
+              isDisabled={saving || readOnly /* allow edit to change might */}
               flexShrink={0}
             />
           </Tooltip>
@@ -246,7 +295,7 @@ export default function SingleTheme({
               variant="ghost"
               size="sm"
               colorScheme={local.is_scratched ? "red" : "gray"}
-              isDisabled={saving}
+              isDisabled={saving || readOnly}
               onClick={() => void save({ is_scratched: !local.is_scratched })}
               flexShrink={0}
             />
@@ -257,7 +306,7 @@ export default function SingleTheme({
               <Input
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
                 bgColor="white"
                 fontWeight="bold"
                 autoFocus
@@ -275,7 +324,7 @@ export default function SingleTheme({
                     await save({ name: tempName.trim() });
                   setEditing(false);
                 }}
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
               />
               <IconButton
                 aria-label="Cancel"
@@ -286,7 +335,7 @@ export default function SingleTheme({
                   setTempName(local.name);
                   setEditing(false);
                 }}
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
               />
             </HStack>
           ) : (
@@ -314,7 +363,7 @@ export default function SingleTheme({
                   setTempName(local.name);
                   setEditing(true);
                 }}
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
                 flexShrink={0}
               />
             </Tooltip>
@@ -331,14 +380,14 @@ export default function SingleTheme({
               size="sm"
               variant="ghost"
               onClick={() => setEditingPowerTags((v) => !v)}
-              isDisabled={saving}
+              isDisabled={saving || readOnly}
             />
           </Tooltip>
         </HStack>
 
         <PowerTags
           themeId={local.id}
-          editing={editingPowerTags}
+          editing={canEdit && editingPowerTags}
           tagType="Power"
           scratchable
         />
@@ -355,13 +404,13 @@ export default function SingleTheme({
               size="sm"
               variant="ghost"
               onClick={() => setEditingWeaknessTags((v) => !v)}
-              isDisabled={saving}
+              isDisabled={saving || readOnly}
             />
           </Tooltip>
         </HStack>
         <PowerTags
           themeId={local.id}
-          editing={editingWeaknessTags}
+          editing={canEdit && editingWeaknessTags}
           tagType="Weakness"
           scratchable={false}
         />
@@ -388,7 +437,7 @@ export default function SingleTheme({
                 bgColor="white"
                 value={tempQuest}
                 onChange={(e) => setTempQuest(e.target.value)}
-                isDisabled={saving}
+                isDisabled={saving || readOnly}
                 autoFocus
               />
               <HStack spacing={2}>
@@ -399,7 +448,7 @@ export default function SingleTheme({
                     await save({ quest: tempQuest });
                     setEditingQuest(false);
                   }}
-                  isDisabled={saving}
+                  isDisabled={saving || readOnly}
                 >
                   Save
                 </Button>
@@ -433,7 +482,7 @@ export default function SingleTheme({
                 setTempQuest(local.quest ?? "");
                 setEditingQuest(!editingQuest);
               }}
-              isDisabled={saving}
+              isDisabled={saving || readOnly}
               flexShrink={0}
             />
           </Tooltip>
@@ -460,6 +509,7 @@ export default function SingleTheme({
                       key={i}
                       bgColor="white"
                       isChecked={checked}
+                      isDisabled={readOnly}
                       onChange={() => {
                         const next = checked ? i - 1 : i;
                         const update: Partial<ThemeRow> = {
@@ -484,17 +534,19 @@ export default function SingleTheme({
           spacing={{ base: 2, md: 3 }}
           justify="flex-end"
         >
-          <Tooltip label="Delete theme">
-            <IconButton
-              aria-label="Delete theme"
-              icon={<DeleteIcon />}
-              colorScheme="red"
-              size="sm"
-              onClick={onOpen}
-              isDisabled={saving}
-              alignSelf={{ base: "flex-end", md: "auto" }}
-            />
-          </Tooltip>
+          {!readOnly && !isFellowshipTheme && (
+            <Tooltip label="Delete theme">
+              <IconButton
+                aria-label="Delete theme"
+                icon={<DeleteIcon />}
+                colorScheme="red"
+                size="sm"
+                onClick={onOpen}
+                isDisabled={saving}
+                alignSelf={{ base: "flex-end", md: "auto" }}
+              />
+            </Tooltip>
+          )}
         </Stack>
 
         <Modal isOpen={isOpen} onClose={onClose} isCentered size="sm">

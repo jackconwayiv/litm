@@ -20,7 +20,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import type { Def, ThemeRow } from "../types/types";
 import { buildCharacterBrief } from "../utils/character";
+import SingleTheme from "./SingleTheme";
 
 type Adventure = {
   id: string;
@@ -41,6 +43,92 @@ type RosterWithBriefRow = {
   brief_class: string;
 };
 
+// Safely coerce unknown rows to {id,name} without using `any`
+function normalizeDefs(rows: unknown): Def[] {
+  if (!Array.isArray(rows)) return [];
+  const out: Def[] = [];
+  for (const r of rows) {
+    const row = r as { id?: unknown; name?: unknown };
+    if (typeof row?.id === "string" && typeof row?.name === "string") {
+      out.push({ id: row.id, name: row.name });
+    }
+  }
+  return out;
+}
+
+// Helper: fetch a single def id by exact name from a table
+async function getDefIdByName(
+  table: "theme_type_defs" | "might_level_defs",
+  name: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from(table)
+    .select("id")
+    .eq("name", name)
+    .maybeSingle();
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn(`Lookup failed for ${table}.${name}:`, error);
+    return null;
+  }
+  const id = (data?.id as string | undefined) ?? null;
+  return id;
+}
+
+// Idempotent create-or-get for a fellowship theme
+async function upsertFellowshipTheme(opts: {
+  fellowshipId: string;
+  name: string;
+  typeId: string;
+  mightId: string;
+}): Promise<ThemeRow | null> {
+  const { fellowshipId, name, typeId, mightId } = opts;
+
+  const payload = {
+    fellowship_id: fellowshipId,
+    name,
+    quest: null,
+    improve: 0,
+    abandon: 0,
+    milestone: 0,
+    is_scratched: false,
+    is_retired: false,
+    type_id: typeId,
+    might_level_id: mightId,
+  };
+
+  // Prefer unique on fellowship_id (one theme per fellowship)
+  let res = await supabase
+    .from("themes")
+    .upsert(payload, { onConflict: "fellowship_id" })
+    .select("*")
+    .maybeSingle<ThemeRow>();
+
+  if (res.data) return res.data;
+
+  // If unique is on (fellowship_id, name), try that
+  if (res.error) {
+    res = await supabase
+      .from("themes")
+      .upsert(payload, { onConflict: "fellowship_id,name" })
+      .select("*")
+      .maybeSingle<ThemeRow>();
+
+    if (res.data) return res.data;
+  }
+
+  // Race-condition fallback: re-select existing row
+  const again = await supabase
+    .from("themes")
+    .select("*")
+    .eq("fellowship_id", fellowshipId)
+    .maybeSingle<ThemeRow>();
+  if (again.data) return again.data;
+
+  if (res.error) throw res.error;
+  return null;
+}
+
 export default function SingleAdventure() {
   const { id } = useParams<{ id: string }>();
 
@@ -54,6 +142,14 @@ export default function SingleAdventure() {
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [busyQuit, setBusyQuit] = useState(false);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  // Fellowship theme states
+  const [fellowshipId, setFellowshipId] = useState<string | null>(null);
+  const [canEditFellowship, setCanEditFellowship] = useState<boolean>(false);
+  const [fellowshipTheme, setFellowshipTheme] = useState<ThemeRow | null>(null);
+  const [typeDefs, setTypeDefs] = useState<Def[]>([]);
+  const [mightDefs, setMightDefs] = useState<Def[]>([]);
+  const [themeLoading, setThemeLoading] = useState<boolean>(false);
 
   const navigate = useNavigate();
 
@@ -97,17 +193,134 @@ export default function SingleAdventure() {
 
       if (rErr) setErr(rErr.message);
 
-      const rows: RosterWithBriefRow[] = Array.isArray(rosterData)
-        ? rosterData
-        : [];
-      setRoster(rows);
+      setRoster(Array.isArray(rosterData) ? rosterData : []);
     } finally {
       setLoading(false);
     }
   }, [id]);
 
+  // Fellowship + defs + canEdit + fellowship theme (create with Fellowship/Origin if needed)
+  const loadFellowshipTheme = useCallback(async () => {
+    if (!id) return;
+    setThemeLoading(true);
+
+    try {
+      // 1) Fellowship for this adventure
+      const { data: f, error: fErr } = await supabase
+        .from("fellowships")
+        .select("id")
+        .eq("adventure_id", id)
+        .maybeSingle();
+      if (fErr) {
+        // eslint-disable-next-line no-console
+        console.error(fErr);
+      }
+      const fid = (f?.id as string | undefined) ?? null;
+      setFellowshipId(fid);
+
+      // 2) Load defs for editing UI (full lists)
+      const [typesRes, mightsRes] = await Promise.all([
+        supabase
+          .from("theme_type_defs")
+          .select("id,name")
+          .order("name", { ascending: true }),
+        supabase
+          .from("might_level_defs")
+          .select("id,name")
+          .order("name", { ascending: true }),
+      ]);
+
+      const normTypes = normalizeDefs(typesRes.data);
+      const normMights = normalizeDefs(mightsRes.data);
+      setTypeDefs(normTypes);
+      setMightDefs(normMights);
+
+      // 3) Determine canEdit (owner or owns any rostered character)
+      let canEdit = false;
+      if (uid && adv) {
+        if (adv.owner_player_id === uid) {
+          canEdit = true;
+        } else {
+          const { data: rows, error: rErr } = await supabase
+            .from("adventure_roster")
+            .select("character_id, characters!inner(player_id)")
+            .eq("adventure_id", id)
+            .eq("characters.player_id", uid)
+            .limit(1);
+          if (!rErr && rows && rows.length > 0) canEdit = true;
+        }
+      }
+      setCanEditFellowship(canEdit);
+
+      // 4) Get or create the fellowship theme with type=Fellowship, might=Origin
+      if (fid) {
+        const { data: t, error: tErr } = await supabase
+          .from("themes")
+          .select("*")
+          .eq("fellowship_id", fid)
+          .maybeSingle<ThemeRow>();
+
+        if (!tErr && t) {
+          setFellowshipTheme(t);
+        } else if (!t && canEdit) {
+          // Try to find IDs from the already-fetched lists first
+          let typeId =
+            normTypes.find((d) => d.name === "Fellowship")?.id ?? null;
+          let mightId = normMights.find((d) => d.name === "Origin")?.id ?? null;
+
+          // Fallback: direct name lookups if not in the lists
+          if (!typeId) {
+            typeId = await getDefIdByName("theme_type_defs", "Fellowship");
+          }
+          if (!mightId) {
+            mightId = await getDefIdByName("might_level_defs", "Origin");
+          }
+
+          if (!typeId || !mightId) {
+            setErr(
+              "Cannot auto-create fellowship theme: missing required defs (type: 'Fellowship', might: 'Origin')."
+            );
+            setFellowshipTheme(null);
+          } else {
+            try {
+              const created = await upsertFellowshipTheme({
+                fellowshipId: fid,
+                name: "Fellowship Theme",
+                typeId,
+                mightId,
+              });
+              setFellowshipTheme(created);
+            } catch (cErr: unknown) {
+              const msg =
+                typeof cErr === "object" && cErr && "message" in cErr
+                  ? (cErr as { message?: string }).message ?? "Unknown error"
+                  : String(cErr);
+              setErr(`Create fellowship theme failed: ${msg}`);
+              // eslint-disable-next-line no-console
+              console.error("Create fellowship theme failed:", cErr);
+              setFellowshipTheme(null);
+            }
+          }
+        } else {
+          setFellowshipTheme(null);
+        }
+      } else {
+        setFellowshipTheme(null);
+      }
+    } finally {
+      setThemeLoading(false);
+    }
+  }, [id, uid, adv]);
+
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    void loadFellowshipTheme();
+  }, [loadFellowshipTheme]);
+
+  useEffect(() => {
     if (!id) return;
 
     const ch = supabase
@@ -120,7 +333,10 @@ export default function SingleAdventure() {
           table: "adventures",
           filter: `id=eq.${id}`,
         },
-        () => void load()
+        () => {
+          void load();
+          void loadFellowshipTheme();
+        }
       )
       .on(
         "postgres_changes",
@@ -130,22 +346,24 @@ export default function SingleAdventure() {
           table: "fellowships",
           filter: `adventure_id=eq.${id}`,
         },
-        () => void load()
+        () => void loadFellowshipTheme()
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "characters" },
-        () => void load()
+        () => {
+          void load();
+          void loadFellowshipTheme();
+        }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(ch);
+      void supabase.removeChannel(ch);
     };
-  }, [load, id]);
+  }, [load, loadFellowshipTheme, id]);
 
-  // Quit (leave this adventure): un-enroll all of the current user's characters
-  // whose fellowship is part of this adventure.
+  // Quit (leave this adventure)
   const quitAdventure = useCallback(async () => {
     if (!id || !uid) return;
     if (isOwner) {
@@ -165,7 +383,7 @@ export default function SingleAdventure() {
         setErr(fErr.message);
         return;
       }
-      const fellowshipIds = (fids ?? []).map((f) => f.id);
+      const fellowshipIds = (fids ?? []).map((fRow) => fRow.id as string);
       if (fellowshipIds.length === 0) {
         setInfoMsg("You are not enrolled in this adventure.");
         return;
@@ -184,8 +402,6 @@ export default function SingleAdventure() {
 
       setConfirmQuit(false);
       setInfoMsg("You have left this Adventure.");
-
-      // Redirect after leaving
       navigate("/", { replace: true });
     } finally {
       setBusyQuit(false);
@@ -216,7 +432,7 @@ export default function SingleAdventure() {
       overflowX="hidden"
       minW={0}
     >
-      {/* Header row: wraps on mobile */}
+      {/* Header row */}
       <Stack
         direction={{ base: "column", md: "row" }}
         spacing={{ base: 2, md: 3 }}
@@ -230,7 +446,7 @@ export default function SingleAdventure() {
           {adv.name}
         </Heading>
 
-        {/* Quit button and inline confirm — only for non-owners */}
+        {/* Quit button (non-owners) */}
         {!isOwner &&
           (!confirmQuit ? (
             <Button
@@ -273,7 +489,7 @@ export default function SingleAdventure() {
           ))}
       </Stack>
 
-      {/* Meta badges: wrap nicely */}
+      {/* Meta badges */}
       <Wrap spacing={{ base: 2, md: 3 }} mb={{ base: 3, md: 4 }}>
         <WrapItem>
           <Badge colorScheme="purple">Code: {adv.subscribe_code}</Badge>
@@ -300,7 +516,7 @@ export default function SingleAdventure() {
           <AlertIcon /> {infoMsg}
         </Alert>
       )}
-
+      {/* Roster */}
       <VStack align="stretch" spacing={{ base: 2, md: 3 }}>
         <Heading as="h2" size="md">
           Fellowship Roster
@@ -371,6 +587,43 @@ export default function SingleAdventure() {
             })}
           </SimpleGrid>
         )}
+      </VStack>
+      {/* Fellowship Theme */}
+      <VStack
+        align="stretch"
+        spacing={{ base: 2, md: 3 }}
+        mt={{ base: 3, md: 4 }}
+      >
+        <Heading as="h2" size="md">
+          Fellowship Theme
+        </Heading>
+        <Card>
+          <CardBody>
+            {themeLoading ? (
+              <HStack>
+                <Spinner size="sm" />
+                <Text>Loading fellowship theme…</Text>
+              </HStack>
+            ) : fellowshipId && fellowshipTheme ? (
+              <SingleTheme
+                theme={fellowshipTheme}
+                mightDefs={mightDefs}
+                typeDefs={typeDefs}
+                onDelete={async (themeId: string) => {
+                  await supabase.from("themes").delete().eq("id", themeId);
+                  setFellowshipTheme(null);
+                }}
+                canEdit={canEditFellowship}
+              />
+            ) : (
+              <Text color="gray.600" fontSize="sm">
+                {canEditFellowship
+                  ? "No fellowship theme yet. It will be created automatically when you edit."
+                  : "No fellowship theme available."}
+              </Text>
+            )}
+          </CardBody>
+        </Card>
       </VStack>
     </Box>
   );

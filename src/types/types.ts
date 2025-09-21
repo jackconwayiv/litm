@@ -7,7 +7,8 @@ export type TabKey =
   | "theme4"
   | "backpack"
   | "statuses"
-  | "bio";
+  | "bio"
+  | "fellowship";
 export const TAB_ORDER: TabKey[] = [
   "theme1",
   "theme2",
@@ -20,6 +21,27 @@ export const TAB_ORDER: TabKey[] = [
 export const isThemeTab = (k: TabKey) =>
   k === "theme1" || k === "theme2" || k === "theme3" || k === "theme4";
 
+export const buildTabOrder = (showFellowship: boolean): TabKey[] =>
+  showFellowship
+    ? ([
+        "theme1",
+        "theme2",
+        "theme3",
+        "theme4",
+        "fellowship",
+        "backpack",
+        "statuses",
+        "bio",
+      ] as TabKey[])
+    : ([
+        "theme1",
+        "theme2",
+        "theme3",
+        "theme4",
+        "backpack",
+        "statuses",
+        "bio",
+      ] as TabKey[]);
 export interface CharacterRow {
   id: string;
   name: string;

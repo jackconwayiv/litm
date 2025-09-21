@@ -27,6 +27,10 @@ type TagRow = {
   is_scratched: boolean | null;
   is_negative: boolean | null;
   created_at?: string;
+  // not required for list rendering, but exists in schema:
+  // fellowship_id?: string | null;
+  // scratched_at?: string | null;
+  // scratched_by_player_id?: string | null;
 };
 
 const TABLE = "tags";
@@ -47,6 +51,11 @@ export default function PowerTags({
   const [err, setErr] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
+  // NEW: cache the fellowship_id of the parent theme (if any)
+  const [themeScope, setThemeScope] = useState<{
+    fellowship_id: string | null;
+  } | null>(null);
+
   const load = useCallback(async () => {
     setErr(null);
     setLoading(true);
@@ -62,6 +71,7 @@ export default function PowerTags({
     setLoading(false);
   }, [themeId, tagType]);
 
+  // Load tags + subscribe to changes
   useEffect(() => {
     void load();
     const ch = supabase
@@ -82,6 +92,24 @@ export default function PowerTags({
     };
   }, [load, themeId, tagType]);
 
+  // NEW: fetch parent theme's fellowship scope once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("themes")
+        .select("fellowship_id")
+        .eq("id", themeId)
+        .maybeSingle();
+      if (!cancelled && !error) {
+        setThemeScope({ fellowship_id: data?.fellowship_id ?? null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [themeId]);
+
   async function add() {
     if (!tags) return;
     const name = newName.trim();
@@ -98,19 +126,25 @@ export default function PowerTags({
       name,
       type: tagType,
       is_scratched: false,
-      is_negative: false,
+      is_negative: tagType === "Weakness" ? true : null,
     };
     setTags([...tags, optimistic]);
     setNewName("");
 
-    const { error } = await supabase.from(TABLE).insert({
+    // Build insert payload; include fellowship_id if the theme is a fellowship theme
+    const payload: Record<string, unknown> = {
       id: tempId,
       theme_id: themeId,
       name,
       type: tagType,
       is_scratched: false,
-      is_negative: false,
-    });
+      is_negative: tagType === "Weakness" ? true : null,
+    };
+    if (themeScope?.fellowship_id) {
+      payload.fellowship_id = themeScope.fellowship_id;
+    }
+
+    const { error } = await supabase.from(TABLE).insert(payload);
     if (error) {
       setErr(error.message);
       setTags((prev) => prev?.filter((t) => t.id !== tempId) ?? null);
@@ -119,10 +153,14 @@ export default function PowerTags({
 
   async function rename(id: string, name: string) {
     if (!tags) return;
+    const trimmed = name.trim();
     const prev = tags;
-    const next = tags.map((t) => (t.id === id ? { ...t, name } : t));
+    const next = tags.map((t) => (t.id === id ? { ...t, name: trimmed } : t));
     setTags(next);
-    const { error } = await supabase.from(TABLE).update({ name }).eq("id", id);
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ name: trimmed })
+      .eq("id", id);
     if (error) {
       setErr(error.message);
       setTags(prev);
