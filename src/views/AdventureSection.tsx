@@ -1,102 +1,107 @@
 import {
+  Badge,
   Box,
   Button,
+  Card,
+  CardBody,
   HStack,
-  Heading,
   Input,
-  Stack,
   Text,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { JoinedAdventure } from "../types/types";
 
 type Props = {
   joined: JoinedAdventure | null;
   joinCodeDefault?: string;
   onJoin: (code: string) => Promise<void>;
-  onLeave: () => Promise<void>;
   busyJoin?: boolean;
-  busyLeave?: boolean;
 };
 
 export default function AdventureSection({
   joined,
   joinCodeDefault = "",
   onJoin,
-  onLeave,
   busyJoin = false,
-  busyLeave = false,
 }: Props) {
   const [code, setCode] = useState<string>(joinCodeDefault);
+  const navigate = useNavigate();
 
   // Keep local code in sync if parent default changes (e.g., after hydrate)
   useEffect(() => {
     setCode(joinCodeDefault);
   }, [joinCodeDefault]);
 
+  // When enrolled, render a compact, clickable card
   if (joined) {
     return (
-      <HStack
-        mt={{ base: 2, md: 3 }}
-        mb={{ base: 2, md: 3 }}
-        p={{ base: 2, md: 3 }}
+      <Card
+        role="button"
+        tabIndex={0}
+        onClick={() => joined.id && navigate(`/adventures/${joined.id}`)}
+        onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+          if ((e.key === "Enter" || e.key === " ") && joined.id) {
+            navigate(`/adventures/${joined.id}`);
+          }
+        }}
         borderWidth="1px"
         rounded="md"
         bg="blackAlpha.50"
-        justify="space-between"
-        align="center"
-        w="full"
-        minW={0}
-        spacing={{ base: 2, md: 3 }}
+        _hover={{ shadow: "md" }}
+        cursor="pointer"
+        mt={{ base: 2, md: 3 }}
+        mb={{ base: 2, md: 3 }}
       >
-        <Box flex="1 1 0" minW={0}>
-          <Heading size="sm" noOfLines={1} title={joined.name || "Adventure"}>
-            Enrolled in {joined.name || "Adventure"}
-          </Heading>
-          {joined.subscribe_code ? (
-            <Text fontSize="xs" color="gray.500" mt={0.5}>
-              Code: {joined.subscribe_code}
+        <CardBody py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }}>
+          <HStack justify="space-between" align="center" w="full" minW={0}>
+            <Text
+              fontWeight="semibold"
+              noOfLines={1}
+              title={joined.name || "Adventure"}
+            >
+              Enrolled in {joined.name || "Adventure"}
             </Text>
-          ) : null}
-        </Box>
-        <Button
-          size="sm"
-          colorScheme="red"
-          onClick={onLeave}
-          isLoading={busyLeave}
-          flexShrink={0}
-        >
-          Leave
-        </Button>
-      </HStack>
+            {joined.subscribe_code ? (
+              <HStack spacing={2} flexShrink={0}>
+                <Text fontSize="xs" color="gray.500">
+                  Code:
+                </Text>
+                <Badge fontSize="0.8em">
+                  {joined.subscribe_code.toUpperCase()}
+                </Badge>
+              </HStack>
+            ) : null}
+          </HStack>
+        </CardBody>
+      </Card>
     );
   }
 
+  // Not enrolled: input row with bold label, then input, then Join button
   return (
-    <Stack
+    <Box
       as="form"
-      direction={{ base: "column", md: "row" }}
-      onSubmit={(e) => {
+      onSubmit={(e: React.FormEvent<HTMLDivElement>) => {
         e.preventDefault();
         onJoin(code.trim().toUpperCase());
       }}
       mt={{ base: 2, md: 3 }}
       mb={{ base: 2, md: 3 }}
       p={{ base: 2, md: 3 }}
-      spacing={{ base: 2, md: 3 }}
       borderWidth="1px"
       rounded="md"
       bg="blackAlpha.50"
-      align={{ base: "stretch", md: "center" }}
-      w="full"
-      minW={0}
     >
       <HStack w="full" minW={0} spacing={{ base: 2, md: 3 }}>
+        <Text fontWeight="bold" whiteSpace="nowrap">
+          Adventure Code:
+        </Text>
         <Input
           aria-label="Join code"
           size="sm"
           value={code}
-          onChange={(e) =>
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setCode(
               e.target.value
                 .toUpperCase()
@@ -110,8 +115,8 @@ export default function AdventureSection({
           fontFamily="mono"
           textAlign="center"
           letterSpacing="widest"
-          flex="0 0 120px"
-          w={{ base: "120px", md: "140px" }}
+          flex="0 0 160px"
+          w={{ base: "160px", md: "180px" }}
           minW={0}
         />
         <Button
@@ -120,19 +125,11 @@ export default function AdventureSection({
           type="submit"
           isLoading={busyJoin}
           flexShrink={0}
+          minW="80px"
         >
           Join
         </Button>
       </HStack>
-
-      {/* Optional helper text for mobile UX */}
-      <Text
-        fontSize="xs"
-        color="gray.600"
-        display={{ base: "block", md: "none" }}
-      >
-        Enter the 4-letter adventure code.
-      </Text>
-    </Stack>
+    </Box>
   );
 }

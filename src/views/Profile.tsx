@@ -134,7 +134,7 @@ export default function Profile() {
       minW={0}
     >
       <Heading size="lg" mb={{ base: 2, md: 4 }}>
-        Profile
+        Your Profile
       </Heading>
 
       {err && (

@@ -1,5 +1,3 @@
-// src/views/SingleAdventure.tsx
-import { RepeatIcon } from "@chakra-ui/icons";
 import {
   Alert,
   AlertIcon,
@@ -19,7 +17,7 @@ import {
   WrapItem,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildCharacterBrief } from "../utils/character";
 
@@ -51,6 +49,12 @@ export default function SingleAdventure() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // Quit button states
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const [busyQuit, setBusyQuit] = useState(false);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  const navigate = useNavigate();
   const isOwner = useMemo(
     () => !!adv && !!uid && adv.owner_player_id === uid,
     [adv, uid]
@@ -58,6 +62,7 @@ export default function SingleAdventure() {
 
   const load = useCallback(async () => {
     setErr(null);
+    setInfoMsg(null);
 
     if (!id) {
       setAdv(null);
@@ -137,6 +142,49 @@ export default function SingleAdventure() {
     };
   }, [load, id]);
 
+  // Quit (leave this adventure): un-enroll all of the current user's characters
+  // whose fellowship is part of this adventure.
+  const quitAdventure = useCallback(async () => {
+    if (!id || !uid) return;
+    setBusyQuit(true);
+    setErr(null);
+    setInfoMsg(null);
+    try {
+      const { data: fids, error: fErr } = await supabase
+        .from("fellowships")
+        .select("id")
+        .eq("adventure_id", id);
+      if (fErr) {
+        setErr(fErr.message);
+        return;
+      }
+      const fellowshipIds = (fids ?? []).map((f) => f.id);
+      if (fellowshipIds.length === 0) {
+        setInfoMsg("You are not enrolled in this adventure.");
+        return;
+      }
+
+      const { error: upErr } = await supabase
+        .from("characters")
+        .update({ fellowship_id: null })
+        .eq("player_id", uid)
+        .in("fellowship_id", fellowshipIds);
+
+      if (upErr) {
+        setErr(upErr.message);
+        return;
+      }
+
+      setConfirmQuit(false);
+      setInfoMsg("You have left this Adventure.");
+
+      // ✅ redirect after leaving
+      navigate("/", { replace: true });
+    } finally {
+      setBusyQuit(false);
+    }
+  }, [id, uid, navigate]);
+
   if (loading) {
     return (
       <HStack p={{ base: 3, md: 4 }} spacing={2}>
@@ -174,16 +222,47 @@ export default function SingleAdventure() {
         <Heading as="h1" size="lg" noOfLines={1} minW={0}>
           {adv.name}
         </Heading>
-        <Button
-          leftIcon={<RepeatIcon />}
-          onClick={() => void load()}
-          variant="outline"
-          size="sm"
-          alignSelf={{ base: "flex-start", md: "auto" }}
-          flexShrink={0}
-        >
-          Refresh
-        </Button>
+
+        {/* Quit button and inline confirm */}
+        {!confirmQuit ? (
+          <Button
+            variant="outline"
+            size="sm"
+            colorScheme="red"
+            alignSelf={{ base: "flex-start", md: "auto" }}
+            flexShrink={0}
+            onClick={() => setConfirmQuit(true)}
+            isDisabled={!uid}
+          >
+            Leave Adventure
+          </Button>
+        ) : (
+          <HStack
+            spacing={2}
+            alignSelf={{ base: "flex-start", md: "auto" }}
+            flexShrink={0}
+          >
+            <Text fontSize="sm">
+              Are you sure you want to leave this Adventure?
+            </Text>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmQuit(false)}
+              isDisabled={busyQuit}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              colorScheme="red"
+              onClick={() => void quitAdventure()}
+              isLoading={busyQuit}
+            >
+              Leave Adventure
+            </Button>
+          </HStack>
+        )}
       </Stack>
 
       {/* Meta badges: wrap nicely */}
@@ -206,6 +285,11 @@ export default function SingleAdventure() {
       {err && (
         <Alert status="error" mb={{ base: 3, md: 4 }}>
           <AlertIcon /> {err}
+        </Alert>
+      )}
+      {infoMsg && (
+        <Alert status="info" mb={{ base: 3, md: 4 }}>
+          <AlertIcon /> {infoMsg}
         </Alert>
       )}
 

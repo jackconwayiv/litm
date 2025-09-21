@@ -1,4 +1,3 @@
-// src/components/SingleCharacter.tsx
 import {
   Alert,
   AlertIcon,
@@ -44,7 +43,6 @@ export default function SingleCharacter() {
   // adventure UI
   const [joinCode, setJoinCode] = useState<string>("");
   const [joining, setJoining] = useState<boolean>(false);
-  const [leaving, setLeaving] = useState<boolean>(false);
 
   // add theme inline panel
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
@@ -140,9 +138,10 @@ export default function SingleCharacter() {
     const { data: tRows, error: tErr } = await supabase
       .from("themes")
       .select(
-        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id"
+        "id,name,quest,improve,abandon,milestone,is_retired,is_scratched,might_level_id,type_id,created_at"
       )
-      .eq("character_id", charId);
+      .eq("character_id", charId)
+      .order("created_at", { ascending: true }); // ← creation order
     if (tErr) {
       setErr(tErr.message);
       setLoading(false);
@@ -236,6 +235,24 @@ export default function SingleCharacter() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // 👇 Auto-open AddThemeInline for empty active theme slot (e.g., brand-new character)
+  useEffect(() => {
+    if (!data) return;
+    // Sort like render does, then inspect the active tab slot
+    const sortedLocal = [...data.themes].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
+
+    const activeIdx = TAB_ORDER.indexOf(tab);
+    if (isThemeTab(tab) && !sortedLocal[activeIdx]) {
+      setPendingSlot(activeIdx + 1);
+      setShowAddInline(true);
+    } else {
+      // If user navigates to a filled slot or a non-theme tab, hide the inline form
+      setShowAddInline(false);
+    }
+  }, [data, tab]);
 
   async function ensureProfile(): Promise<string | null> {
     const { data: u } = await supabase.auth.getUser();
@@ -377,31 +394,6 @@ export default function SingleCharacter() {
     toast({ status: "success", title: "Joined adventure" });
   }
 
-  async function leaveAdventure() {
-    if (!data || !data.character.fellowship_id) return;
-    setLeaving(true);
-    const { error } = await supabase
-      .from("characters")
-      .update({ fellowship_id: null })
-      .eq("id", data.character.id);
-    setLeaving(false);
-    if (error) {
-      toast({ status: "error", title: error.message });
-      return;
-    }
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            character: { ...prev.character, fellowship_id: null },
-            joinedAdventure: null,
-          }
-        : prev
-    );
-    setJoinCode("");
-    toast({ status: "success", title: "Left adventure" });
-  }
-
   async function renameCharacter(name: string) {
     if (!data) return;
     const { error } = await supabase
@@ -450,18 +442,15 @@ export default function SingleCharacter() {
   }
   if (!data) return null;
 
-  const sorted = [...data.themes].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-  );
   const themeSlots: (ThemeRow | null)[] = [0, 1, 2, 3].map(
-    (i) => sorted[i] ?? null
+    (i) => (data.themes ?? [])[i] ?? null
   );
 
   const onTabChange = (k: TabKey, idx: number) => {
     if (isThemeTab(k) && !themeSlots[idx]) {
-      openAddTheme(idx + 1); // show form for empty slot
+      openAddTheme(idx + 1);
     } else {
-      setShowAddInline(false); // hide if the slot already has a theme
+      setShowAddInline(false);
     }
     setTab(k);
     window.location.hash = k;
@@ -480,24 +469,21 @@ export default function SingleCharacter() {
         character={data.character}
         onRename={renameCharacter}
         onDelete={deleteCharacter}
+        rightExtras={
+          <PromiseStepper
+            value={data.character.promise}
+            onChange={updatePromise}
+            busy={savingPromise}
+          />
+        }
       />
-
-      <Box mt={{ base: 1, md: 2 }}>
-        <PromiseStepper
-          value={data.character.promise}
-          onChange={updatePromise}
-          busy={savingPromise}
-        />
-      </Box>
 
       <Box mt={{ base: 2, md: 3 }}>
         <AdventureSection
           joined={data.joinedAdventure}
           joinCodeDefault={joinCode}
           onJoin={joinAdventure}
-          onLeave={leaveAdventure}
           busyJoin={joining}
-          busyLeave={leaving}
         />
       </Box>
 
@@ -511,7 +497,7 @@ export default function SingleCharacter() {
       />
 
       <Box p={{ base: 1, md: 2 }}>
-        {/* Add Theme Inline — only when active tab is a theme tab with no theme */}
+        {/* Add Theme Inline — auto-shown when the active theme slot is empty */}
         {(() => {
           const activeIdx = TAB_ORDER.indexOf(tab);
           const shouldShowAdd =

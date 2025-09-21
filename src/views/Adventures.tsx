@@ -198,6 +198,9 @@ export default function Adventures() {
       overflowX="hidden"
       minW={0}
     >
+      <Heading size="lg" mb={{ base: 2, md: 4 }}>
+        Your Adventures
+      </Heading>
       {/* Toolbar */}
       <HStack mb={{ base: 2, md: 4 }} spacing={{ base: 2, md: 3 }}>
         <Button
