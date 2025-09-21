@@ -1,3 +1,4 @@
+// src/views/SingleAdventure.tsx
 import {
   Alert,
   AlertIcon,
@@ -55,6 +56,7 @@ export default function SingleAdventure() {
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   const navigate = useNavigate();
+
   const isOwner = useMemo(
     () => !!adv && !!uid && adv.owner_player_id === uid,
     [adv, uid]
@@ -146,6 +148,11 @@ export default function SingleAdventure() {
   // whose fellowship is part of this adventure.
   const quitAdventure = useCallback(async () => {
     if (!id || !uid) return;
+    if (isOwner) {
+      setInfoMsg("Owners can’t leave from here.");
+      return;
+    }
+
     setBusyQuit(true);
     setErr(null);
     setInfoMsg(null);
@@ -178,12 +185,12 @@ export default function SingleAdventure() {
       setConfirmQuit(false);
       setInfoMsg("You have left this Adventure.");
 
-      // ✅ redirect after leaving
+      // Redirect after leaving
       navigate("/", { replace: true });
     } finally {
       setBusyQuit(false);
     }
-  }, [id, uid, navigate]);
+  }, [id, uid, isOwner, navigate]);
 
   if (loading) {
     return (
@@ -223,46 +230,47 @@ export default function SingleAdventure() {
           {adv.name}
         </Heading>
 
-        {/* Quit button and inline confirm */}
-        {!confirmQuit ? (
-          <Button
-            variant="outline"
-            size="sm"
-            colorScheme="red"
-            alignSelf={{ base: "flex-start", md: "auto" }}
-            flexShrink={0}
-            onClick={() => setConfirmQuit(true)}
-            isDisabled={!uid}
-          >
-            Leave Adventure
-          </Button>
-        ) : (
-          <HStack
-            spacing={2}
-            alignSelf={{ base: "flex-start", md: "auto" }}
-            flexShrink={0}
-          >
-            <Text fontSize="sm">
-              Are you sure you want to leave this Adventure?
-            </Text>
+        {/* Quit button and inline confirm — only for non-owners */}
+        {!isOwner &&
+          (!confirmQuit ? (
             <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setConfirmQuit(false)}
-              isDisabled={busyQuit}
-            >
-              Cancel
-            </Button>
-            <Button
+              variant="outline"
               size="sm"
               colorScheme="red"
-              onClick={() => void quitAdventure()}
-              isLoading={busyQuit}
+              alignSelf={{ base: "flex-start", md: "auto" }}
+              flexShrink={0}
+              onClick={() => setConfirmQuit(true)}
+              isDisabled={!uid}
             >
               Leave Adventure
             </Button>
-          </HStack>
-        )}
+          ) : (
+            <HStack
+              spacing={2}
+              alignSelf={{ base: "flex-start", md: "auto" }}
+              flexShrink={0}
+            >
+              <Text fontSize="sm">
+                Are you sure you want to leave this Adventure?
+              </Text>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirmQuit(false)}
+                isDisabled={busyQuit}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                colorScheme="red"
+                onClick={() => void quitAdventure()}
+                isLoading={busyQuit}
+              >
+                Leave Adventure
+              </Button>
+            </HStack>
+          ))}
       </Stack>
 
       {/* Meta badges: wrap nicely */}
