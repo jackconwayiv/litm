@@ -27,10 +27,6 @@ type TagRow = {
   is_scratched: boolean | null;
   is_negative: boolean | null;
   created_at?: string;
-  // not required for list rendering, but exists in schema:
-  // fellowship_id?: string | null;
-  // scratched_at?: string | null;
-  // scratched_by_player_id?: string | null;
 };
 
 const TABLE = "tags";
@@ -50,11 +46,6 @@ export default function PowerTags({
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
-
-  // NEW: cache the fellowship_id of the parent theme (if any)
-  const [themeScope, setThemeScope] = useState<{
-    fellowship_id: string | null;
-  } | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -92,24 +83,6 @@ export default function PowerTags({
     };
   }, [load, themeId, tagType]);
 
-  // NEW: fetch parent theme's fellowship scope once
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("themes")
-        .select("fellowship_id")
-        .eq("id", themeId)
-        .maybeSingle();
-      if (!cancelled && !error) {
-        setThemeScope({ fellowship_id: data?.fellowship_id ?? null });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [themeId]);
-
   async function add() {
     if (!tags) return;
     const name = newName.trim();
@@ -120,33 +93,34 @@ export default function PowerTags({
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`;
 
+    const isNeg = tagType === "Weakness"; // true for Weakness, false for Power
+
+    // optimistic row
     const optimistic: TagRow = {
       id: tempId,
       theme_id: themeId,
       name,
       type: tagType,
       is_scratched: false,
-      is_negative: tagType === "Weakness" ? true : null,
+      is_negative: isNeg,
     };
-    setTags([...tags, optimistic]);
+    setTags([...(tags ?? []), optimistic]);
     setNewName("");
 
-    // Build insert payload; include fellowship_id if the theme is a fellowship theme
-    const payload: Record<string, unknown> = {
+    // IMPORTANT: do NOT include fellowship_id; scope is implied by theme_id.
+    const payload = {
       id: tempId,
       theme_id: themeId,
       name,
       type: tagType,
       is_scratched: false,
-      is_negative: tagType === "Weakness" ? true : null,
+      is_negative: isNeg, // never null
     };
-    if (themeScope?.fellowship_id) {
-      payload.fellowship_id = themeScope.fellowship_id;
-    }
 
     const { error } = await supabase.from(TABLE).insert(payload);
     if (error) {
       setErr(error.message);
+      // rollback optimistic
       setTags((prev) => prev?.filter((t) => t.id !== tempId) ?? null);
     }
   }
